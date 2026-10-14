@@ -5,12 +5,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import com.karenarias.proyectopmac.ui.auth.RechargeUiModel
+import androidx.lifecycle.viewModelScope
+import com.karenarias.proyectopmac.data.remote.RecargaRepository
+import kotlinx.coroutines.launch
 
 /**
  * ViewModel que administra el estado y los datos de la pantalla principal (HomeScreen)
  * para MetroGo (saldo, información de tarjeta y listado de recargas).
  */
 class HomeViewModel : ViewModel() {
+    private val recargaRepository = RecargaRepository()
 
     var userName by mutableStateOf("Juan")
         private set
@@ -27,14 +31,55 @@ class HomeViewModel : ViewModel() {
     var selectedTab by mutableStateOf(0)
         private set
 
-    var recharges by mutableStateOf(
-        listOf(
-            RechargeUiModel("1", "+ S/. 20.00", "Hoy, 14:30", "Recarga exitosa", true),
-            RechargeUiModel("2", "+ S/. 10.00", "Ayer, 09:15", "Recarga exitosa", true),
-            RechargeUiModel("3", "+ S/. 15.00", "12 Oct, 18:45", "Error en recarga", false)
-        )
-    )
+    var recharges by mutableStateOf<List<RechargeUiModel>>(emptyList())
         private set
+
+    fun cargarRecargas() {
+        viewModelScope.launch {
+            try {
+                val recargasAws = recargaRepository.obtenerRecargas()
+
+                recharges = recargasAws
+                    .filter { it.numeroTarjeta == cardNumber }
+                    .sortedByDescending { it.id }
+                    .map { recarga ->
+                        RechargeUiModel(
+                            id = recarga.id,
+                            amount = "+ S/. ${recarga.monto}",
+                            date = recarga.fecha,
+                            status = "Recarga simulada (${recarga.metodoPago})",
+                            isSuccess = true
+                        )
+                    }
+
+            } catch (e: Exception) {
+                android.util.Log.e(
+                    "METROGO_AWS",
+                    "Error al consultar el historial",
+                    e
+                )
+            }
+        }
+    }
+
+
+    fun addRecharge(amount: String, paymentMethod: String) {
+        val currentDate = java.text.SimpleDateFormat(
+            "dd/MM/yyyy HH:mm",
+            java.util.Locale.getDefault()
+        ).format(java.util.Date())
+
+        val newRecharge = RechargeUiModel(
+            id = System.currentTimeMillis().toString(),
+            amount = "+ S/. $amount",
+            date = currentDate,
+            status = "Recarga simulada ($paymentMethod)",
+            isSuccess = true
+        )
+
+        recharges = listOf(newRecharge) + recharges
+    }
+
 
     fun onTabSelected(tabIndex: Int) {
         selectedTab = tabIndex

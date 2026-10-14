@@ -9,7 +9,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.karenarias.proyectopmac.ui.auth.*
 import com.karenarias.proyectopmac.ui.home.HomeViewModel
-
+import com.karenarias.proyectopmac.ui.recharge.RechargeScreen
+import androidx.compose.runtime.LaunchedEffect
 /**
  * Grafo de navegación principal para MetroGo utilizando Navigation Compose.
  * Conecta Login, Registro, Recuperación de contraseña y la pantalla principal (Home).
@@ -80,6 +81,29 @@ fun MetroGoNavGraph(
                 errorMessage = authViewModel.registerErrorMessage
             )
         }
+        // HU-005: Pantalla de recarga de saldo
+        composable("recharge") {
+            RechargeScreen(
+                cardNumber = homeViewModel.cardNumber,
+                onRechargeConfirmed = { amount, paymentMethod ->
+                    homeViewModel.addRecharge(amount, paymentMethod)
+                },
+                onTabSelected = { tabIndex ->
+                    when (tabIndex) {
+                        0 -> navController.navigate("home") {
+                            popUpTo("home") {
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                        }
+
+                        3 -> {
+                            // Ya estamos en Recargar
+                        }
+                    }
+                }
+            )
+        }
 
         // Pantalla de Recuperación de Contraseña
         composable("forgot_password") {
@@ -100,6 +124,9 @@ fun MetroGoNavGraph(
 
         // Pantalla Principal (Home)
         composable("home") {
+            LaunchedEffect(Unit) {
+                homeViewModel.cargarRecargas()
+            }
             HomeScreen(
                 userName = homeViewModel.userName,
                 cardNumber = homeViewModel.cardNumber,
@@ -107,9 +134,21 @@ fun MetroGoNavGraph(
                 cardBalance = homeViewModel.cardBalance,
                 recharges = homeViewModel.recharges,
                 selectedTab = homeViewModel.selectedTab,
-                onTabSelected = { homeViewModel.onTabSelected(it) },
+                onTabSelected = { tabIndex ->
+                    when (tabIndex) {
+                        3 -> {
+                            navController.navigate("recharge") {
+                                launchSingleTop = true
+                            }
+                        }
+
+                        else -> {
+                            homeViewModel.onTabSelected(tabIndex = tabIndex)
+                        }
+                    }
+                },
                 onRechargeClick = {
-                    // Acción de recarga (fases posteriores)
+                    navController.navigate("recharge")
                 },
                 onMyCardsClick = {
                     // Acción de tarjetas (fases posteriores)
