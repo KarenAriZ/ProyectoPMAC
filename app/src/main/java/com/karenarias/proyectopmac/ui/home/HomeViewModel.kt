@@ -40,6 +40,12 @@ class HomeViewModel : ViewModel() {
         selectedTab = tabIndex
     }
 
+    /** HU-003: muestra en el inicio la tarjeta digitalizada con la cámara. */
+    fun updateCard(number: String, type: String) {
+        cardNumber = number
+        cardType = type
+    }
+
     fun refreshData() {
         // Simulación de actualización de saldo y recargas
         cardBalance = "S/. 37.30"

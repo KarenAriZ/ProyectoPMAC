@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HU-003: carpeta donde se guardan temporalmente las fotos de las tarjetas -->
+<paths>
+    <cache-path name="card_photos" path="card_photos/" />
+</paths>

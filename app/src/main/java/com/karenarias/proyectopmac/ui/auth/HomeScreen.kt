@@ -50,7 +50,9 @@ fun HomeScreen(
     onMyCardsClick: () -> Unit,
     onViewAllRechargesClick: () -> Unit,
     onProfileClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onScanCardClick: () -> Unit = {},   // HU-003
+    onSupportClick: () -> Unit = {}     // HU-009
 ) {
     var balanceVisible by remember { mutableStateOf(true) }
 
@@ -286,6 +288,27 @@ fun HomeScreen(
                         imageVector = Icons.Default.CreditCard,
                         modifier = Modifier.weight(1f),
                         onClick = onMyCardsClick
+                    )
+                }
+            }
+
+            // HU-003 y HU-009: digitalizar tarjeta con cámara y llamar a la central
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    QuickActionCard(
+                        title = "Escanear tarjeta",
+                        imageVector = Icons.Default.PhotoCamera,
+                        modifier = Modifier.weight(1f),
+                        onClick = onScanCardClick
+                    )
+                    QuickActionCard(
+                        title = "Atención al cliente",
+                        imageVector = Icons.Default.SupportAgent,
+                        modifier = Modifier.weight(1f),
+                        onClick = onSupportClick
                     )
                 }
             }
