@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- HU-008: aviso push de confirmación al eliminar una tarjeta (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- HU-003: la cámara es opcional (también se puede elegir de la galería) -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />

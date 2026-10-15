@@ -21,6 +21,7 @@ import androidx.navigation.compose.rememberNavController
 import com.karenarias.proyectopmac.ui.auth.*
 import com.karenarias.proyectopmac.ui.home.HomeViewModel
 import com.karenarias.proyectopmac.ui.cards.ScanCardScreen
+import com.karenarias.proyectopmac.ui.cards.MyCardsScreen
 import com.karenarias.proyectopmac.ui.recharge.RechargeScreen
 import com.karenarias.proyectopmac.ui.support.SupportScreen
 
@@ -49,7 +50,7 @@ fun MetroGoNavGraph(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(session, currentRoute) {
-        if (currentRoute in listOf("home", "claims", "claims/{claimId}", "history", "recharge/{rechargeId}", "new_claim/{rechargeId}", "scan_card", "recharge_card", "support") &&
+        if (currentRoute in listOf("home", "claims", "claims/{claimId}", "history", "recharge/{rechargeId}", "new_claim/{rechargeId}", "scan_card", "recharge_card", "support", "my_cards") &&
             (session == null || session.isExpired())) {
             authViewModel.checkSessionExpiration()
             navController.navigate("login") {
@@ -157,7 +158,7 @@ fun MetroGoNavGraph(
                 onTabSelected = { tab ->
                     when (tab) {
                         0 -> homeViewModel.onTabSelected(0)
-                        1 -> navController.navigate("scan_card") { launchSingleTop = true }
+                        1 -> navController.navigate("my_cards") { launchSingleTop = true }
                         2 -> navController.navigate("history") { launchSingleTop = true }
                         3 -> navController.navigate("recharge_card") { launchSingleTop = true }
                     }
@@ -310,14 +311,22 @@ fun MetroGoNavGraph(
                             ClaimCard("card-${record.numeroTarjeta}", record.numeroTarjeta.takeLast(4), homeViewModel.cardType)
                         ))
                     },
-                    onCardsClick = { navController.navigate("scan_card") { launchSingleTop = true } },
+                    onCardsClick = { navController.navigate("my_cards") { launchSingleTop = true } },
                     onTabSelected = { tab ->
                         when (tab) {
                             0 -> navController.popBackStack("home", false)
-                            1 -> navController.navigate("scan_card") { launchSingleTop = true }
+                            1 -> navController.navigate("my_cards") { launchSingleTop = true }
                             2 -> navController.navigate("history") { launchSingleTop = true }
                         }
                     }
+                )
+            }
+        }
+        composable("my_cards") {
+            if (session != null && !session.isExpired()) {
+                MyCardsScreen(
+                    onBack = { navController.popBackStack() },
+                    onAddCard = { navController.navigate("scan_card") { launchSingleTop = true } }
                 )
             }
         }
