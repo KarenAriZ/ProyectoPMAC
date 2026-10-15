@@ -52,8 +52,9 @@ import java.io.File
 fun ScanCardScreen(
     onBack: () -> Unit,
     onCardSaved: (DigitalCard) -> Unit,
+    userId: String,
     viewModel: ScanCardViewModel = viewModel()
-) {
+){
     val context = LocalContext.current
     var pendingUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -81,7 +82,7 @@ fun ScanCardScreen(
             confirmButton = {
                 TextButton(onClick = {
                     // HU-008: se guarda en "Mis tarjetas" (estado ACTIVA)
-                    CardRepository.get(context).add(card.number, card.alias, card.type)
+                    CardRepository.get(context, userId).add(card.number, card.alias, card.type)
                     onCardSaved(card)
                     viewModel.reset()
                 }) { Text("Aceptar", color = PurplePrimary) }

@@ -31,7 +31,10 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.widget.Toast
+import android.content.Context
 /**
  * HU-008: Mis tarjetas — eliminar una tarjeta guardada con aviso push de confirmación.
  *
@@ -42,10 +45,28 @@ import java.util.Locale
 @Composable
 fun MyCardsScreen(
     onBack: () -> Unit,
-    onAddCard: () -> Unit
+    onAddCard: () -> Unit,
+    userId: String
 ) {
     val context = LocalContext.current
-    val repository = remember { CardRepository.get(context) }
+
+    fun hayInternet(): Boolean {
+        val manager = context.getSystemService(
+            Context.CONNECTIVITY_SERVICE
+        ) as ConnectivityManager
+
+        val network = manager.activeNetwork ?: return false
+        val capabilities =
+            manager.getNetworkCapabilities(network) ?: return false
+
+        return capabilities.hasCapability(
+            NetworkCapabilities.NET_CAPABILITY_VALIDATED
+        )
+    }
+
+    val repository = remember(userId) {
+        CardRepository.get(context, userId)
+    }
     val allCards by repository.cards.collectAsState()
     var showInactive by remember { mutableStateOf(false) }
     var cardToDelete by remember { mutableStateOf<SavedCard?>(null) }
@@ -169,16 +190,41 @@ fun MyCardsScreen(
                 }
             }
 
+
             items(visibleCards, key = { it.id }) { card ->
-                SavedCardItem(
-                    card = card,
-                    onDelete = { cardToDelete = card },
-                    onReactivate = {
-                        repository.reactivate(card.id)
-                        scope.launch { snackbarHostState.showSnackbar("Tarjeta ${card.maskedNumber} reactivada") }
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SavedCardItem(
+                        card = card,
+                        onDelete = { cardToDelete = card },
+                        onReactivate = {
+                            repository.reactivate(card.id)
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    "Tarjeta ${card.maskedNumber} reactivada"
+                                )
+                            }
+                        }
+                    )
+
+                    if (card.isActive) {
+
+
+                        Text(
+                            text = if (card.saldo != null) {
+                                "Último saldo guardado: S/ ${card.saldo}"
+                            } else {
+                                "Saldo no disponible"
+                            },
+                            style = MaterialTheme.typography.bodyMedium ,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
                     }
-                )
+                }
             }
+
         }
     }
 }

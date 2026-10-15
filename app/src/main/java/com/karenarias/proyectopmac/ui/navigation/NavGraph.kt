@@ -18,14 +18,19 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.karenarias.proyectopmac.OfflineSessionStorage
 import com.karenarias.proyectopmac.ui.auth.*
 import com.karenarias.proyectopmac.ui.card.CardStatusRoute
 import com.karenarias.proyectopmac.ui.home.HomeViewModel
 import com.karenarias.proyectopmac.ui.map.RechargeMapRoute
 import com.karenarias.proyectopmac.ui.cards.ScanCardScreen
 import com.karenarias.proyectopmac.ui.cards.MyCardsScreen
+import com.karenarias.proyectopmac.ui.cards.OfflineCardsScreen
 import com.karenarias.proyectopmac.ui.recharge.RechargeScreen
 import com.karenarias.proyectopmac.ui.support.SupportScreen
+import android.widget.Toast
+import androidx.fragment.app.FragmentActivity
+import com.karenarias.proyectopmac.OfflineAuthHelper
 
 /**
  * Grafo de navegación principal para MetroGo utilizando Navigation Compose.
@@ -39,9 +44,13 @@ fun MetroGoNavGraph(
     homeViewModel: HomeViewModel = viewModel(),
     claimsViewModel: ClaimsViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val session = authViewModel.session
+    var offlineAutorizado by remember {
+        mutableStateOf(false)
+    }
     LaunchedEffect(session?.user?.id) { claimsViewModel.bindUser(session?.user?.id) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -85,6 +94,46 @@ fun MetroGoNavGraph(
                             }
                         }
                     )
+                },
+                onOfflineClick = {
+                    val userId = OfflineSessionStorage(context).obtenerUsuario()
+                    val activity = context as? FragmentActivity
+
+                    when {
+                        userId == null -> {
+                            Toast.makeText(
+                                context,
+                                "Al cerrar sesión, se desactivó el acceso offline. Inicia sesión nuevamente.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+
+                        activity == null -> {
+                            Toast.makeText(
+                                context,
+                                "No se pudo iniciar la autenticación.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+
+                        else -> {
+                            OfflineAuthHelper(activity).autenticar(
+                                onSuccess = {
+                                    offlineAutorizado = true
+                                    navController.navigate("offline_cards") {
+                                        launchSingleTop = true
+                                    }
+                                },
+                                onError = { mensaje ->
+                                    Toast.makeText(
+                                        context,
+                                        mensaje,
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
+                        }
+                    }
                 },
                 onNavigateToRegister = {
                     navController.navigate("register")
@@ -144,6 +193,13 @@ fun MetroGoNavGraph(
         // Pantalla Principal (Home)
         composable("home") {
             if (session != null && !session.isExpired()) {
+
+                LaunchedEffect(session.user.id) {
+                    session.user.id?.let { userId ->
+                        homeViewModel.cargarSaldoTarjeta(userId)
+                    }
+                }
+
             // HU-004: al volver a Inicio (por ejemplo desde "Mi tarjeta") se vuelve a leer el saldo.
             LaunchedEffect(Unit) { homeViewModel.refreshData() }
             var showProfile by remember { mutableStateOf(false) }
@@ -177,7 +233,9 @@ fun MetroGoNavGraph(
                     navController.navigate("recharge_card") { launchSingleTop = true }
                 },
                 onMyCardsClick = {
-                    navController.navigate("my_cards") { launchSingleTop = true }
+                    navController.navigate("my_cards") {
+                        launchSingleTop = true
+                    }
                 },
                 onViewAllRechargesClick = {
                     navController.navigate("history") { launchSingleTop = true }
@@ -297,7 +355,8 @@ fun MetroGoNavGraph(
                         homeViewModel.updateCard(card.number, card.type)
                         homeViewModel.onTabSelected(0)
                         navController.popBackStack("home", false)
-                    }
+                    },
+                    userId = session.user.id!!,
                 )
             }
         }
@@ -354,15 +413,44 @@ fun MetroGoNavGraph(
                 )
             }
         }
+
         composable("my_cards") {
-            if (session != null && !session.isExpired()) {
+            session
+                ?.takeIf { !it.isExpired() }
+                ?.user?.id
+                ?.takeIf { it.isNotBlank() }
+                ?.let { userId ->
                 MyCardsScreen(
-                    onBack = {
-                        homeViewModel.refreshData()
-                        navController.popBackStack()
+                    onBack = { navController.popBackStack() },
+                    onAddCard = {
+                        navController.navigate("scan_card") {
+                            launchSingleTop = true
+                        }
                     },
-                    onAddCard = { navController.navigate("scan_card") { launchSingleTop = true } }
+                    userId = userId
                 )
+            }
+        }
+        composable("offline_cards") {
+            val usuarioOffline =
+                OfflineSessionStorage(context).obtenerUsuario()
+
+            if (offlineAutorizado && usuarioOffline != null) {
+                OfflineCardsScreen(
+                    onBack = {
+                        offlineAutorizado = false
+                        navController.popBackStack()
+                    }
+                )
+            } else {
+                LaunchedEffect(Unit) {
+                    navController.navigate("login") {
+                        popUpTo("offline_cards") {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                }
             }
         }
     }

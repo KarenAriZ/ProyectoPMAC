@@ -1,3 +1,4 @@
+
 package com.karenarias.proyectopmac.ui.home
 
 import android.app.Application
@@ -5,38 +6,44 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
-import com.karenarias.proyectopmac.data.card.CardRepository
-import com.karenarias.proyectopmac.data.card.CardStatus
-import com.karenarias.proyectopmac.data.card.CardSyncResult
-import com.karenarias.proyectopmac.data.card.formatSoles
-import com.karenarias.proyectopmac.notifications.MetroGoNotifications
+import com.karenarias.proyectopmac.data.local.TarjetaLocalStorage
+import com.karenarias.proyectopmac.data.local.TarjetaOffline
 import com.karenarias.proyectopmac.ui.auth.RechargeUiModel
-import kotlinx.coroutines.launch
+import com.karenarias.proyectopmac.data.cards.CardRepository
 
 /**
- * ViewModel que administra el estado y los datos de la pantalla principal (HomeScreen)
- * para MetroGo (saldo, información de tarjeta y listado de recargas).
- * HU-004: el saldo y la tarjeta vienen de CardRepository (AWS, con copia en el celular),
- * los mismos datos que "Mi tarjeta".
+ * ViewModel que administra el estado y los datos de la pantalla principal
+ * de MetroGo: saldo, información de tarjeta y listado de recargas.
  */
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val cardRepository = CardRepository(application)
+    private val tarjetaLocalStorage = TarjetaLocalStorage(application)
 
     var userName by mutableStateOf("Juan")
         private set
 
-    var cardNumber by mutableStateOf("")
+    var cardNumber by mutableStateOf(
+        tarjetaLocalStorage.obtenerNumeroTarjeta() ?: "8754785478"
+    )
         private set
 
-    var cardType by mutableStateOf("")
+    var cardType by mutableStateOf(
+        tarjetaLocalStorage.obtenerTipoTarjeta() ?: "Estudiante"
+    )
         private set
 
-    var cardBalance by mutableStateOf("")
+    var cardBalance by mutableStateOf("Saldo no disponible")
         private set
+    val isLowBalance: Boolean
+        get() = cardBalance
+            .replace("S/", "")
+            .trim()
+            .toDoubleOrNull()
+            ?.let { it < 5.0 } ?: false
 
-    var isLowBalance by mutableStateOf(false)
+    var tarjetasOffline by mutableStateOf<List<TarjetaOffline>>(
+        tarjetaLocalStorage.obtenerTarjetas()
+    )
         private set
 
     var selectedTab by mutableStateOf(0)
@@ -51,64 +58,105 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     )
         private set
 
-    init {
-        refreshData()
-    }
-
     fun onTabSelected(tabIndex: Int) {
         selectedTab = tabIndex
     }
 
-    /**
-     * HU-003: muestra en el inicio la tarjeta digitalizada con la cámara.
-     * HU-004: también se guarda en CardRepository (y en AWS) para que "Mi tarjeta" muestre la misma tarjeta.
-     */
+    // HU-007: guardar una tarjeta para su consulta offline.
+    fun guardarTarjetaLocal(
+        numero: String,
+        tipo: String,
+        saldo: String
+    ) {
+        tarjetaLocalStorage.guardarTarjeta(numero, tipo, saldo)
+
+        cardNumber = numero
+        cardType = tipo
+        cardBalance = saldo
+    }
+
+    // HU-007: guardar la lista de tarjetas sincronizadas.
+    fun guardarTarjetasSincronizadas(tarjetas: List<TarjetaOffline>) {
+        tarjetaLocalStorage.guardarTarjetas(tarjetas)
+        tarjetasOffline = tarjetas
+    }
+
+    // HU-003: mostrar en el inicio la tarjeta escaneada.
+
     fun updateCard(number: String, type: String) {
+        tarjetasOffline = tarjetaLocalStorage.agregarTarjetaEscaneada(
+            numero = number,
+            tipo = type
+        )
+
         cardNumber = number
         cardType = type
-        sync { cardRepository.updateCard(number, type) }
+
+        // El escáner no obtiene el saldo de la tarjeta.
+        // Solo mostramos uno si ya estaba guardado para esta misma tarjeta.
+        val tarjeta = tarjetasOffline.find { it.numero == number }
+        cardBalance = tarjeta?.saldo ?: "Saldo no disponible"
     }
 
-    /**
-     * HU-005: registra la recarga en la lista de Inicio.
-     * HU-004: suma el monto al saldo en AWS, así Home y "Mi tarjeta" muestran el saldo nuevo
-     * y desaparece el aviso de saldo bajo si corresponde.
-     */
+
     fun recordRecharge(amount: String, method: String) {
         val value = amount.toBigDecimalOrNull() ?: return
-        val cents = value.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).toLong()
         recharges = listOf(RechargeUiModel(
-            "SIM-" + java.util.UUID.randomUUID(), "+ S/. " + value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString(),
+            "SIM-" + java.util.UUID.randomUUID(), "+ S/. " + value.setScale(2).toPlainString(),
             "Hoy · $method", "Recarga simulada", true
         )) + recharges
-        sync { cardRepository.applyRecharge(cents) }
     }
 
-    /** Vuelve a consultar el saldo (se llama cada vez que Inicio aparece en pantalla). */
     fun refreshData() {
-        sync { cardRepository.refresh() }
+        // Pendiente: obtener el saldo actualizado desde el servicio de tarjetas.
+        // No modificar el último saldo guardado sin una sincronización real.
     }
 
-    /** Muestra de inmediato los datos guardados y luego los actualiza con la respuesta de AWS. */
-    private fun sync(operation: suspend () -> CardSyncResult) {
-        viewModelScope.launch {
-            val result = operation()
-            show(result.status)
+    fun cargarSaldoTarjeta(userId: String) {
+        val repository = CardRepository.get(
+            getApplication(),
+            userId
+        )
+
+        val tarjetas = repository.activeCards()
+
+        val tarjeta = tarjetas.firstOrNull {
+            it.number == cardNumber
+        } ?: tarjetas.firstOrNull()
+
+        if (tarjeta != null) {
+            cardNumber = tarjeta.number
+            cardType = tarjeta.type
+
+            cardBalance = if (
+                tarjeta.saldo != null &&
+                tarjeta.ultimaSincronizacion != null
+            ) {
+                "S/ ${tarjeta.saldo}"
+            } else {
+                "Saldo no disponible"
+            }
+        } else {
+            cardBalance = "Saldo no disponible"
         }
-        show(cardRepository.getStatus())
     }
+    fun aplicarRecargaConfirmada(
+        userId: String,
+        numeroTarjeta: String,
+        monto: String
+    ): Boolean {
+        val repository = CardRepository.get(getApplication(), userId)
 
-    private fun show(status: CardStatus) {
-        cardNumber = status.number
-        cardType = status.type
-        cardBalance = formatSoles(status.balanceCents)
-        isLowBalance = status.isLowBalance
+        val tarjeta = repository.aplicarRecarga(
+            numeroTarjeta = numeroTarjeta,
+            monto = monto
+        ) ?: return false
 
-        val context = getApplication<Application>()
-        if (MetroGoNotifications.canPostNotifications(context) &&
-            cardRepository.consumeLowBalanceAlert(status)
-        ) {
-            MetroGoNotifications.showLowBalance(context, status)
+        if (tarjeta.number == cardNumber) {
+            cardBalance = "S/ ${tarjeta.saldo}"
         }
+
+        return true
     }
+
 }
