@@ -29,13 +29,12 @@ import com.karenarias.proyectopmac.ui.theme.*
 
 /**
  * Datos de la central de atención al cliente.
- * IMPORTANTE: número de EJEMPLO para la demo. Reemplazar por el número oficial
- * de atención del Metropolitano/ATU antes de la entrega.
+ * Número de contacto indicado para MetroGo.
  */
 object SupportContact {
-    const val PHONE_NUMBER = "016155000"       // número que se marca
-    const val PHONE_DISPLAY = "(01) 615-5000"  // número que se muestra
-    const val SCHEDULE = "Lunes a domingo, 5:00 a.m. – 11:00 p.m."
+    const val PHONE_NUMBER = "+5112039001"       // número que se marca
+    const val PHONE_DISPLAY = "+51 1 203 9001"  // número que se muestra
+    const val SCHEDULE = "Consulta el horario de atención por teléfono."
 }
 
 private data class SupportReason(val icon: ImageVector, val title: String, val description: String)

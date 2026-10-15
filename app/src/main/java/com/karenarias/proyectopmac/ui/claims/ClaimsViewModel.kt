@@ -15,15 +15,25 @@ import kotlinx.coroutines.flow.StateFlow
 class ClaimsViewModel(private val savedState: SavedStateHandle) : ViewModel() {
     val selectedCard: StateFlow<String> = savedState.getStateFlow("claimCard", "all")
     val selectedFilter: StateFlow<String> = savedState.getStateFlow("claimFilter", ClaimFilter.ALL.name)
-    val cards = ClaimSamples.cards
+    val cards: List<ClaimCard> get() = (ClaimSamples.cards + rechargeRecords.map { it.card }).distinctBy { it.id }
     var claims by mutableStateOf(ClaimSamples.claims)
         private set
+    var rechargeRecords by mutableStateOf(RechargeHistorySamples.records)
+        private set
     private var activeUser: String? = null
+
+    fun recordRecharge(record: RechargeRecord) {
+        if (activeUser == null || rechargeRecords.any { it.id == record.id }) return
+        rechargeRecords = listOf(record) + rechargeRecords
+    }
+
+    fun findRecharge(id: String?) = rechargeRecords.find { it.id == id }
 
     fun bindUser(userId: String?) {
         if (activeUser != userId) {
             activeUser = userId
             claims = ClaimSamples.claims
+            rechargeRecords = RechargeHistorySamples.records
             selectCard("all")
             selectFilter(ClaimFilter.ALL)
         }
@@ -33,7 +43,7 @@ class ClaimsViewModel(private val savedState: SavedStateHandle) : ViewModel() {
 
     fun registerClaim(rechargeId: String, reason: String, description: String): String? {
         if (activeUser == null || validateClaim(reason, description) != null) return null
-        val record = RechargeHistorySamples.find(rechargeId) ?: return null
+        val record = findRecharge(rechargeId) ?: return null
         claimForRecharge(rechargeId)?.let { return it }
         val now = ZonedDateTime.now(ZoneId.of("America/Lima"))
         val date = now.format(DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.forLanguageTag("es-PE")))
