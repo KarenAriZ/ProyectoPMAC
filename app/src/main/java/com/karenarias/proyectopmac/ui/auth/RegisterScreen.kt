@@ -1,9 +1,12 @@
 package com.karenarias.proyectopmac.ui.auth
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
@@ -11,6 +14,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -27,8 +32,10 @@ import com.karenarias.proyectopmac.ui.theme.*
  */
 @Composable
 fun RegisterScreen(
-    fullName: String,
-    onFullNameChange: (String) -> Unit,
+    firstName: String,
+    onFirstNameChange: (String) -> Unit,
+    lastName: String,
+    onLastNameChange: (String) -> Unit,
     email: String,
     onEmailChange: (String) -> Unit,
     password: String,
@@ -39,12 +46,23 @@ fun RegisterScreen(
     onNavigateToLogin: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
-    errorMessage: String? = null
+    errorMessage: String? = null,
+    registrationSucceeded: Boolean = false,
+    onRegistrationConfirmed: () -> Unit = {}
 ) {
+    val focusManager = LocalFocusManager.current
+    LaunchedEffect(registrationSucceeded) {
+        if (registrationSucceeded) focusManager.clearFocus()
+    }
+    if (registrationSucceeded) {
+        RegistrationSuccessDialog(onReturnToLogin = onRegistrationConfirmed)
+    }
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(BackgroundCream)
+            .imePadding()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -87,13 +105,23 @@ fun RegisterScreen(
 
                 // Campos de texto
                 AuthTextField(
-                    value = fullName,
-                    onValueChange = onFullNameChange,
-                    placeholder = "Nombre completo",
+                    enabled = !isLoading && !registrationSucceeded,
+                    value = firstName,
+                    onValueChange = onFirstNameChange,
+                    placeholder = "Nombre",
                     icon = Icons.Default.Person
                 )
 
                 AuthTextField(
+                    enabled = !isLoading && !registrationSucceeded,
+                    value = lastName,
+                    onValueChange = onLastNameChange,
+                    placeholder = "Apellido",
+                    icon = Icons.Default.Person
+                )
+
+                AuthTextField(
+                    enabled = !isLoading && !registrationSucceeded,
                     value = email,
                     onValueChange = onEmailChange,
                     placeholder = "Correo electrónico",
@@ -101,6 +129,7 @@ fun RegisterScreen(
                 )
 
                 AuthTextField(
+                    enabled = !isLoading && !registrationSucceeded,
                     value = password,
                     onValueChange = onPasswordChange,
                     placeholder = "Contraseña",
@@ -109,11 +138,18 @@ fun RegisterScreen(
                 )
 
                 AuthTextField(
+                    enabled = !isLoading && !registrationSucceeded,
                     value = confirmPassword,
                     onValueChange = onConfirmPasswordChange,
                     placeholder = "Confirmar contraseña",
                     icon = Icons.Default.Lock,
                     isPassword = true
+                )
+
+                Text(
+                    text = "Tu contraseña debe contener más de 11 caracteres.",
+                    color = PurplePrimary,
+                    fontSize = 12.sp
                 )
 
                 // Mensaje de error opcional
@@ -148,7 +184,7 @@ fun RegisterScreen(
                         color = PurpleDark,
                         fontSize = 13.sp
                     )
-                    TextButton(onClick = onNavigateToLogin) {
+                    TextButton(onClick = onNavigateToLogin, enabled = !isLoading) {
                         Text(
                             text = "Inicia sesión",
                             color = PurplePrimary,
@@ -166,14 +202,17 @@ fun RegisterScreen(
 @Composable
 fun RegisterScreenPreview() {
     ProyectoPMACTheme {
-        var fullName by remember { mutableStateOf("") }
+        var firstName by remember { mutableStateOf("") }
+        var lastName by remember { mutableStateOf("") }
         var email by remember { mutableStateOf("") }
         var password by remember { mutableStateOf("") }
         var confirmPassword by remember { mutableStateOf("") }
 
         RegisterScreen(
-            fullName = fullName,
-            onFullNameChange = { fullName = it },
+            firstName = firstName,
+            onFirstNameChange = { firstName = it },
+            lastName = lastName,
+            onLastNameChange = { lastName = it },
             email = email,
             onEmailChange = { email = it },
             password = password,
@@ -187,3 +226,58 @@ fun RegisterScreenPreview() {
         )
     }
 }
+
+
+
+
+@Composable
+private fun RegistrationSuccessDialog(onReturnToLogin: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        ),
+        icon = {
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = null,
+                tint = PurplePrimary,
+                modifier = Modifier.size(52.dp)
+            )
+        },
+        title = {
+            Text(
+                text = "¡Registro exitoso!",
+                color = PurpleDark,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        },
+        text = {
+            Text(
+                text = "Tu usuario se ha registrado de manera exitosa. Vuelve al inicio de sesión para continuar.",
+                color = PurpleDark,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            PrimaryButton(
+                text = "Volver al inicio de sesión",
+                onClick = onReturnToLogin
+            )
+        },
+        shape = RoundedCornerShape(24.dp),
+        containerColor = CardWhite
+    )
+}
+
+@Preview(showBackground = true, name = "Registro exitoso")
+@Composable
+private fun RegistrationSuccessDialogPreview() {
+    ProyectoPMACTheme(darkTheme = false) {
+        RegistrationSuccessDialog(onReturnToLogin = {})
+    }
+}
+

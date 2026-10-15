@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.karenarias.proyectopmac.ui.theme.CardWhite
 import com.karenarias.proyectopmac.ui.theme.MauveAccent
 import com.karenarias.proyectopmac.ui.theme.PurpleDark
 import com.karenarias.proyectopmac.ui.theme.PurplePrimary
@@ -37,12 +38,14 @@ fun AuthTextField(
     placeholder: String,
     icon: ImageVector,
     modifier: Modifier = Modifier,
-    isPassword: Boolean = false
+    isPassword: Boolean = false,
+    enabled: Boolean = true
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
 
     OutlinedTextField(
         value = value,
+        enabled = enabled,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
         placeholder = { Text(text = placeholder, color = PurpleDark.copy(alpha = 0.6f)) },
@@ -75,6 +78,14 @@ fun AuthTextField(
         },
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
+            focusedTextColor = PurpleDark,
+            unfocusedTextColor = PurpleDark,
+            disabledTextColor = PurpleDark,
+            errorTextColor = PurpleDark,
+            focusedContainerColor = CardWhite,
+            unfocusedContainerColor = CardWhite,
+            disabledContainerColor = CardWhite,
+            errorContainerColor = CardWhite,
             focusedBorderColor = PurplePrimary,
             unfocusedBorderColor = MauveAccent,
             focusedLabelColor = PurplePrimary,
@@ -84,3 +95,5 @@ fun AuthTextField(
         singleLine = true
     )
 }
+
+
