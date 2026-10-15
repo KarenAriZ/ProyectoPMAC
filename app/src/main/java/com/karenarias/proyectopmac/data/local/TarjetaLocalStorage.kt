@@ -56,4 +56,37 @@ class TarjetaLocalStorage(context: Context) {
             emptyList()
         }
     }
+
+    fun agregarTarjetaEscaneada(
+        numero: String,
+        tipo: String
+    ): List<TarjetaOffline> {
+        val tarjetasActuales = obtenerTarjetas()
+
+        // Evitar duplicados y conservar el saldo previamente sincronizado.
+        val tarjetaExistente = tarjetasActuales.find {
+            it.numero == numero
+        }
+
+        val tarjetasActualizadas = if (tarjetaExistente != null) {
+            tarjetasActuales.map { tarjeta ->
+                if (tarjeta.numero == numero) {
+                    tarjeta.copy(tipo = tipo)
+                } else {
+                    tarjeta
+                }
+            }
+        } else {
+            tarjetasActuales + TarjetaOffline(
+                numero = numero,
+                tipo = tipo,
+                saldo = null,
+                ultimaSincronizacion = null
+            )
+        }
+
+        guardarTarjetas(tarjetasActualizadas)
+        return tarjetasActualizadas
+    }
+
 }

@@ -16,6 +16,7 @@ import com.karenarias.proyectopmac.ui.auth.*
 import com.karenarias.proyectopmac.ui.home.HomeViewModel
 import com.karenarias.proyectopmac.ui.cards.ScanCardScreen
 import com.karenarias.proyectopmac.ui.support.SupportScreen
+import com.karenarias.proyectopmac.ui.recharge.RechargeScreen
 
 /**
  * MODO DEMO (solo para mostrar HU-003 y HU-009 sin iniciar sesión).
@@ -40,6 +41,7 @@ fun MetroGoNavGraph(
         modifier = modifier
     ) {
         // Pantalla de Login
+
         composable("login") {
             DisposableEffect(Unit) { onDispose { authViewModel.cancelLogin() } }
             LoginScreen(
@@ -169,7 +171,9 @@ fun MetroGoNavGraph(
                 recharges = homeViewModel.recharges,
                 selectedTab = homeViewModel.selectedTab,
                 onTabSelected = { homeViewModel.onTabSelected(it) },
-                onRechargeClick = {},
+                onRechargeClick = {
+                    navController.navigate("recharge")
+                },
                 onMyCardsClick = {},
                 onViewAllRechargesClick = {},
                 onProfileClick = {},
@@ -184,6 +188,19 @@ fun MetroGoNavGraph(
                 onBack = { navController.popBackStack() },
                 onCardSaved = { card ->
                     homeViewModel.updateCard(card.number, card.type)
+                    navController.popBackStack()
+                }
+            )
+        }
+        composable("recharge") {
+            RechargeScreen(
+                cardNumber = homeViewModel.cardNumber,
+                onTabSelected = { tab ->
+                    if (tab == 3) {
+                        return@RechargeScreen
+                    }
+
+                    homeViewModel.onTabSelected(tab)
                     navController.popBackStack()
                 }
             )

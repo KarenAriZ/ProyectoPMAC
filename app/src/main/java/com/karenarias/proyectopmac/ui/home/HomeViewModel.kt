@@ -77,10 +77,22 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // HU-003: mostrar en el inicio la tarjeta escaneada.
+
     fun updateCard(number: String, type: String) {
+        tarjetasOffline = tarjetaLocalStorage.agregarTarjetaEscaneada(
+            numero = number,
+            tipo = type
+        )
+
         cardNumber = number
         cardType = type
+
+        // El escáner no obtiene el saldo de la tarjeta.
+        // Solo mostramos uno si ya estaba guardado para esta misma tarjeta.
+        val tarjeta = tarjetasOffline.find { it.numero == number }
+        cardBalance = tarjeta?.saldo ?: "Saldo no disponible"
     }
+
 
     fun refreshData() {
         // Pendiente: obtener el saldo actualizado desde el servicio de tarjetas.
