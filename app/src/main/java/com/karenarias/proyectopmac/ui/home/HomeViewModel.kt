@@ -8,24 +8,42 @@ import com.karenarias.proyectopmac.ui.auth.RechargeUiModel
 import androidx.lifecycle.viewModelScope
 import com.karenarias.proyectopmac.data.remote.RecargaRepository
 import kotlinx.coroutines.launch
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import com.karenarias.proyectopmac.data.local.TarjetaLocalStorage
+import com.karenarias.proyectopmac.data.local.TarjetaOffline
 
 /**
  * ViewModel que administra el estado y los datos de la pantalla principal (HomeScreen)
  * para MetroGo (saldo, información de tarjeta y listado de recargas).
  */
-class HomeViewModel : ViewModel() {
+class HomeViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val tarjetaLocalStorage = TarjetaLocalStorage(application)
+
     private val recargaRepository = RecargaRepository()
 
     var userName by mutableStateOf("Juan")
         private set
 
-    var cardNumber by mutableStateOf("8754785478")
+    var cardNumber by mutableStateOf(
+        tarjetaLocalStorage.obtenerNumeroTarjeta() ?: "8754785478"
+    )
         private set
 
-    var cardType by mutableStateOf("Estudiante")
+    var cardType by mutableStateOf(
+        tarjetaLocalStorage.obtenerTipoTarjeta() ?: "Estudiante"
+    )
         private set
 
-    var cardBalance by mutableStateOf("S/. 17.30")
+    var cardBalance by mutableStateOf(
+        tarjetaLocalStorage.obtenerSaldoTarjeta() ?: "S/. 17.30"
+    )
+        private set
+
+    var tarjetasOffline by mutableStateOf<List<TarjetaOffline>>(
+        tarjetaLocalStorage.obtenerTarjetas()
+    )
         private set
 
     var selectedTab by mutableStateOf(0)
@@ -85,8 +103,26 @@ class HomeViewModel : ViewModel() {
         selectedTab = tabIndex
     }
 
-    fun refreshData() {
-        // Simulación de actualización de saldo y recargas
-        cardBalance = "S/. 37.30"
+    fun guardarTarjetaLocal(
+        numero: String,
+        tipo: String,
+        saldo: String
+    ) {
+        tarjetaLocalStorage.guardarTarjeta(numero, tipo, saldo)
+
+        cardNumber = numero
+        cardType = tipo
+        cardBalance = saldo
     }
+    fun guardarTarjetasSincronizadas(tarjetas: List<TarjetaOffline>) {
+        tarjetaLocalStorage.guardarTarjetas(tarjetas)
+        tarjetasOffline = tarjetas
+    }
+
+    fun refreshData() {
+        // Pendiente: obtener el saldo actualizado desde el servicio de tarjetas.
+        // No modificar el último saldo guardado sin una sincronización real.
+    }
+
+
 }
