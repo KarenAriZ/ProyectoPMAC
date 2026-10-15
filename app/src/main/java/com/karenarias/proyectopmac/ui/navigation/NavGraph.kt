@@ -19,7 +19,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.karenarias.proyectopmac.ui.auth.*
+import com.karenarias.proyectopmac.ui.card.CardStatusRoute
 import com.karenarias.proyectopmac.ui.home.HomeViewModel
+import com.karenarias.proyectopmac.ui.map.RechargeMapRoute
 import com.karenarias.proyectopmac.ui.cards.ScanCardScreen
 import com.karenarias.proyectopmac.ui.recharge.RechargeScreen
 import com.karenarias.proyectopmac.ui.support.SupportScreen
@@ -43,13 +45,16 @@ fun MetroGoNavGraph(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) authViewModel.checkSessionExpiration()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                authViewModel.checkSessionExpiration()
+                homeViewModel.refreshData() // HU-004: saldo actualizado al volver a la app
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(session, currentRoute) {
-        if (currentRoute in listOf("home", "claims", "claims/{claimId}", "history", "recharge/{rechargeId}", "new_claim/{rechargeId}", "scan_card", "recharge_card", "support") &&
+        if (currentRoute in listOf("home", "claims", "claims/{claimId}", "history", "recharge/{rechargeId}", "new_claim/{rechargeId}", "scan_card", "recharge_card", "support", "card_status", "recharge_points") &&
             (session == null || session.isExpired())) {
             authViewModel.checkSessionExpiration()
             navController.navigate("login") {
@@ -138,6 +143,8 @@ fun MetroGoNavGraph(
         // Pantalla Principal (Home)
         composable("home") {
             if (session != null && !session.isExpired()) {
+            // HU-004: al volver a Inicio (por ejemplo desde "Mi tarjeta") se vuelve a leer el saldo.
+            LaunchedEffect(Unit) { homeViewModel.refreshData() }
             var showProfile by remember { mutableStateOf(false) }
             val context = LocalContext.current
             var showContact by remember { mutableStateOf(false) }
@@ -154,6 +161,9 @@ fun MetroGoNavGraph(
                 cardBalance = homeViewModel.cardBalance,
                 recharges = homeViewModel.recharges,
                 selectedTab = homeViewModel.selectedTab,
+                isLowBalance = homeViewModel.isLowBalance, // HU-004
+                onBalanceClick = { navController.navigate("card_status") { launchSingleTop = true } }, // HU-004
+                onRechargePointsClick = { navController.navigate("recharge_points") { launchSingleTop = true } }, // HU-006
                 onTabSelected = { tab ->
                     when (tab) {
                         0 -> homeViewModel.onTabSelected(0)
@@ -318,6 +328,28 @@ fun MetroGoNavGraph(
                             2 -> navController.navigate("history") { launchSingleTop = true }
                         }
                     }
+                )
+            }
+        }
+
+        // HU-004: saldo y estado de la tarjeta + alerta de saldo bajo
+        composable("card_status") {
+            if (session != null && !session.isExpired()) {
+                CardStatusRoute(
+                    onBack = {
+                        homeViewModel.refreshData()
+                        navController.popBackStack()
+                    },
+                    onOpenRechargePoints = { navController.navigate("recharge_points") { launchSingleTop = true } }
+                )
+            }
+        }
+
+        // HU-006: mapa de puntos de recarga física + alertas de paraderos próximos
+        composable("recharge_points") {
+            if (session != null && !session.isExpired()) {
+                RechargeMapRoute(
+                    onBack = { navController.popBackStack() }
                 )
             }
         }
