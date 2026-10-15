@@ -48,7 +48,7 @@ private fun ClaimStatusBadge(status: ClaimStatus) {
 @Composable
 private fun ClaimsFrame(
     title: String, onBack: () -> Unit, onHome: () -> Unit, onClaims: () -> Unit,
-    modifier: Modifier = Modifier, content: @Composable (PaddingValues) -> Unit
+    modifier: Modifier = Modifier, onHistory: () -> Unit = {}, content: @Composable (PaddingValues) -> Unit
 ) {
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -84,6 +84,7 @@ private fun ClaimsFrame(
                                 when (index) {
                                     0 -> onHome()
                                     1 -> onClaims()
+                                    2 -> onHistory()
                                     else -> scope.launch { snackbar.showSnackbar("$label estará disponible próximamente") }
                                 }
                             },
@@ -105,11 +106,11 @@ fun ClaimsScreen(
     claims: List<CardClaim>, cards: List<ClaimCard>, selectedCard: String,
     selectedFilter: ClaimFilter, onCardSelected: (String) -> Unit,
     onFilterSelected: (ClaimFilter) -> Unit, onClaimClick: (String) -> Unit,
-    onBack: () -> Unit, onHome: () -> Unit, modifier: Modifier = Modifier
+    onBack: () -> Unit, onHome: () -> Unit, modifier: Modifier = Modifier, onHistory: () -> Unit = {}
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val visibleClaims = filterClaims(claims, selectedCard, selectedFilter)
-    ClaimsFrame("Mis reclamos", onBack, onHome, {}, modifier) { padding ->
+    ClaimsFrame("Mis reclamos", onBack, onHome, {}, modifier, onHistory) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -192,9 +193,9 @@ private fun ClaimPanel(content: @Composable ColumnScope.() -> Unit) {
 @Composable
 fun ClaimDetailScreen(
     claim: CardClaim?, onBack: () -> Unit, onHome: () -> Unit, onClaims: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier, onHistory: () -> Unit = {}
 ) {
-    ClaimsFrame("Detalle del reclamo", onBack, onHome, onClaims, modifier) { padding ->
+    ClaimsFrame("Detalle del reclamo", onBack, onHome, onClaims, modifier, onHistory) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -230,6 +231,7 @@ fun ClaimDetailScreen(
                         Text("Información del reclamo", color = PurpleDark, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                         DetailField("Fecha de registro", claim.receivedAt)
                         DetailField("Monto reclamado", claim.amount)
+                        claim.rechargeId?.let { DetailField("Recarga asociada", it) }
                         DetailField("Descripción", claim.description)
                     }
                 }
@@ -298,4 +300,3 @@ private fun ClaimsScreenPreview() {
 private fun ClaimDetailScreenPreview() {
     ProyectoPMACTheme(darkTheme = false) { ClaimDetailScreen(ClaimSamples.claims.first(), {}, {}, {}) }
 }
-

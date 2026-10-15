@@ -51,8 +51,9 @@ fun HomeScreen(
     onViewAllRechargesClick: () -> Unit,
     onProfileClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onScanCardClick: () -> Unit = {},   // HU-003
-    onSupportClick: () -> Unit = {}     // HU-009
+    onContactClick: () -> Unit = {},
+    onClaimsClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {}
 ) {
     var balanceVisible by remember { mutableStateOf(true) }
 
@@ -103,22 +104,12 @@ fun HomeScreen(
                             )
                         }
 
-                        // Botón de perfil circular
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(MauveAccent)
-                                .clickable { onProfileClick() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = "Perfil",
-                                tint = CardWhite,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                        UserMenu(
+                            onProfile = onProfileClick,
+                            onContact = onContactClick,
+                            onClaims = onClaimsClick,
+                            onLogout = onLogoutClick
+                        )
                     }
                 }
             }
@@ -288,27 +279,6 @@ fun HomeScreen(
                         imageVector = Icons.Default.CreditCard,
                         modifier = Modifier.weight(1f),
                         onClick = onMyCardsClick
-                    )
-                }
-            }
-
-            // HU-003 y HU-009: digitalizar tarjeta con cámara y llamar a la central
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    QuickActionCard(
-                        title = "Escanear tarjeta",
-                        imageVector = Icons.Default.PhotoCamera,
-                        modifier = Modifier.weight(1f),
-                        onClick = onScanCardClick
-                    )
-                    QuickActionCard(
-                        title = "Atención al cliente",
-                        imageVector = Icons.Default.SupportAgent,
-                        modifier = Modifier.weight(1f),
-                        onClick = onSupportClick
                     )
                 }
             }

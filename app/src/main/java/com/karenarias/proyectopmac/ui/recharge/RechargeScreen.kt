@@ -30,7 +30,10 @@ fun RechargeScreen(
     modifier: Modifier = Modifier,
     cardNumber: String = "",
     onRechargeConfirmed: (String, String) -> Unit = { _, _ -> },
-    onTabSelected: (Int) -> Unit = {}
+    onTabSelected: (Int) -> Unit = {},
+    onRechargeRecorded: (RecargaDto) -> Unit = {},
+    onCardsClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {}
 ) {
     // Datos temporales para probar la interfaz
     var selectedAmount by remember { mutableStateOf("20") }
@@ -64,7 +67,7 @@ fun RechargeScreen(
         containerColor = BackgroundCream,
         topBar = {
             MetroGoTopBar(
-                title = "Tarjetas")
+                title = "Tarjetas", onTitleClick = onCardsClick, onProfileClick = onProfileClick)
         },
         bottomBar = {
             MetroGoBottomBar(
@@ -370,6 +373,7 @@ fun RechargeScreen(
                                     val respuesta = recargaRepository.registrarRecarga(recarga)
 
                                     if (respuesta.id == idActual) {
+                                        onRechargeRecorded(recarga)
                                         confirmedAmount = montoActual
                                         confirmedPayment = metodoActual
                                         confirmedDate = fechaActual

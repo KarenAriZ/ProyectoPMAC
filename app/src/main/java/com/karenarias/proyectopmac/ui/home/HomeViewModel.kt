@@ -94,6 +94,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
+    fun recordRecharge(amount: String, method: String) {
+        val value = amount.toBigDecimalOrNull() ?: return
+        val balance = cardBalance.removePrefix("S/.").trim().toBigDecimalOrNull() ?: return
+        cardBalance = "S/. " + (balance + value).setScale(2).toPlainString()
+        recharges = listOf(RechargeUiModel(
+            "SIM-" + java.util.UUID.randomUUID(), "+ S/. " + value.setScale(2).toPlainString(),
+            "Hoy · $method", "Recarga simulada", true
+        )) + recharges
+    }
+
     fun refreshData() {
         // Pendiente: obtener el saldo actualizado desde el servicio de tarjetas.
         // No modificar el último saldo guardado sin una sincronización real.
