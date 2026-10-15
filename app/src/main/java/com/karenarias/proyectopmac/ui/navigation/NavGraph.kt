@@ -14,6 +14,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.karenarias.proyectopmac.ui.auth.*
 import com.karenarias.proyectopmac.ui.home.HomeViewModel
+import com.karenarias.proyectopmac.ui.cards.ScanCardScreen
+import com.karenarias.proyectopmac.ui.support.SupportScreen
+
+/**
+ * MODO DEMO (solo para mostrar HU-003 y HU-009 sin iniciar sesión).
+ * ⚠️ Poner en false antes de hacer commit/entregar.
+ */
+const val DEMO_HU = false
 
 /**
  * Grafo de navegación principal para MetroGo utilizando Navigation Compose.
@@ -28,7 +36,7 @@ fun MetroGoNavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = "login",
+        startDestination = if (DEMO_HU) "demo_home" else "login",
         modifier = modifier
     ) {
         // Pantalla de Login
@@ -144,9 +152,46 @@ fun MetroGoNavGraph(
                 onProfileClick = {
                     // Cierre local: el token del servidor conserva su vencimiento.
                     authViewModel.logout()
-                }
+                },
+                onScanCardClick = { navController.navigate("scan_card") },
+                onSupportClick = { navController.navigate("support") }
             )
             }
+        }
+
+        // Inicio de demostración sin sesión (ver DEMO_HU)
+        composable("demo_home") {
+            HomeScreen(
+                userName = "Demo",
+                cardNumber = homeViewModel.cardNumber,
+                cardType = homeViewModel.cardType,
+                cardBalance = homeViewModel.cardBalance,
+                recharges = homeViewModel.recharges,
+                selectedTab = homeViewModel.selectedTab,
+                onTabSelected = { homeViewModel.onTabSelected(it) },
+                onRechargeClick = {},
+                onMyCardsClick = {},
+                onViewAllRechargesClick = {},
+                onProfileClick = {},
+                onScanCardClick = { navController.navigate("scan_card") },
+                onSupportClick = { navController.navigate("support") }
+            )
+        }
+
+        // HU-003: Digitalizar tarjeta con la cámara + OCR (ML Kit)
+        composable("scan_card") {
+            ScanCardScreen(
+                onBack = { navController.popBackStack() },
+                onCardSaved = { card ->
+                    homeViewModel.updateCard(card.number, card.type)
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // HU-009: Llamada directa a la central de atención al cliente
+        composable("support") {
+            SupportScreen(onBack = { navController.popBackStack() })
         }
     }
 }
