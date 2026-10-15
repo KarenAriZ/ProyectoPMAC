@@ -1,73 +1,54 @@
 package com.karenarias.proyectopmac.ui.claims
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import java.time.ZonedDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import java.util.UUID
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.StateFlow
-
-enum class ClaimStatus(val label: String) {
-    RECEIVED("Recibido"), REVIEW("En revisión"), RESOLVED("Resuelto")
-}
-
-enum class ClaimFilter(val label: String) {
-    ALL("Todos"), PENDING("Pendientes"), RESOLVED("Resueltos")
-}
-
-data class ClaimCard(val id: String, val lastDigits: String, val type: String) {
-    val label: String get() = "•••• $lastDigits · $type"
-}
-
-data class CardClaim(
-    val id: String,
-    val title: String,
-    val card: ClaimCard,
-    val status: ClaimStatus,
-    val date: String,
-    val receivedAt: String,
-    val amount: String,
-    val description: String,
-    val reviewedAt: String? = null,
-    val resolvedAt: String? = null,
-    val resolution: String? = null
-)
-
-/** Datos locales de demostración; no realiza solicitudes ni registra reclamos reales. */
-object ClaimSamples {
-    val cards = listOf(
-        ClaimCard("student", "5478", "Estudiante"),
-        ClaimCard("general", "9032", "General")
-    )
-    val claims = listOf(
-        CardClaim("REC-024", "Recarga no aplicada", cards[0], ClaimStatus.REVIEW,
-            "14 oct. 2026", "14 oct. 2026 · 09:40", "S/ 20.00",
-            "Realicé una recarga, pero el saldo no se actualizó en mi tarjeta.",
-            reviewedAt = "14 oct. 2026 · 11:15"),
-        CardClaim("REC-023", "Cobro duplicado", cards[1], ClaimStatus.RECEIVED,
-            "12 oct. 2026", "12 oct. 2026 · 16:20", "S/ 3.20",
-            "Se registraron dos cobros por el mismo viaje en mi tarjeta."),
-        CardClaim("REC-019", "Saldo incorrecto", cards[0], ClaimStatus.RESOLVED,
-            "08 oct. 2026", "08 oct. 2026 · 10:05", "S/ 5.00",
-            "El saldo mostrado no corresponde al monto disponible después de mi último viaje.",
-            reviewedAt = "08 oct. 2026 · 14:30", resolvedAt = "09 oct. 2026 · 09:10",
-            resolution = "Se verificaron los movimientos y se corrigió el saldo de tu tarjeta.")
-    )
-}
 
 class ClaimsViewModel(private val savedState: SavedStateHandle) : ViewModel() {
     val selectedCard: StateFlow<String> = savedState.getStateFlow("claimCard", "all")
     val selectedFilter: StateFlow<String> = savedState.getStateFlow("claimFilter", ClaimFilter.ALL.name)
     val cards = ClaimSamples.cards
-    val claims = ClaimSamples.claims
+    var claims by mutableStateOf(ClaimSamples.claims)
+        private set
+    private var activeUser: String? = null
+
+    fun bindUser(userId: String?) {
+        if (activeUser != userId) {
+            activeUser = userId
+            claims = ClaimSamples.claims
+            selectCard("all")
+            selectFilter(ClaimFilter.ALL)
+        }
+    }
+
+    fun claimForRecharge(rechargeId: String): String? = claims.find { it.rechargeId == rechargeId }?.id
+
+    fun registerClaim(rechargeId: String, reason: String, description: String): String? {
+        if (activeUser == null || validateClaim(reason, description) != null) return null
+        val record = RechargeHistorySamples.find(rechargeId) ?: return null
+        claimForRecharge(rechargeId)?.let { return it }
+        val now = ZonedDateTime.now(ZoneId.of("America/Lima"))
+        val date = now.format(DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.forLanguageTag("es-PE")))
+        val id = "REC-" + UUID.randomUUID().toString().take(8).uppercase(Locale.ROOT)
+        claims = listOf(CardClaim(
+            id, reason, record.card, ClaimStatus.RECEIVED, date,
+            "$date · ${now.format(DateTimeFormatter.ofPattern("HH:mm"))}",
+            record.amount, description.trim(), rechargeId = record.id
+        )) + claims
+        selectCard("all")
+        selectFilter(ClaimFilter.ALL)
+        return id
+    }
 
     fun selectCard(id: String) { savedState["claimCard"] = id }
     fun selectFilter(filter: ClaimFilter) { savedState["claimFilter"] = filter.name }
     fun findClaim(id: String?): CardClaim? = claims.find { it.id == id }
 }
-
-fun filterClaims(claims: List<CardClaim>, cardId: String, filter: ClaimFilter): List<CardClaim> =
-    claims.filter { claim ->
-        (cardId == "all" || claim.card.id == cardId) && when (filter) {
-            ClaimFilter.ALL -> true
-            ClaimFilter.PENDING -> claim.status != ClaimStatus.RESOLVED
-            ClaimFilter.RESOLVED -> claim.status == ClaimStatus.RESOLVED
-        }
-    }

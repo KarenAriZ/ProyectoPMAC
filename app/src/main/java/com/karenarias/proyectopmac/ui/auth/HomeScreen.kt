@@ -50,7 +50,10 @@ fun HomeScreen(
     onMyCardsClick: () -> Unit,
     onViewAllRechargesClick: () -> Unit,
     onProfileClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onContactClick: () -> Unit = {},
+    onClaimsClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {}
 ) {
     var balanceVisible by remember { mutableStateOf(true) }
 
@@ -101,22 +104,12 @@ fun HomeScreen(
                             )
                         }
 
-                        // Botón de perfil circular
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(MauveAccent)
-                                .clickable { onProfileClick() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = "Perfil",
-                                tint = CardWhite,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                        UserMenu(
+                            onProfile = onProfileClick,
+                            onContact = onContactClick,
+                            onClaims = onClaimsClick,
+                            onLogout = onLogoutClick
+                        )
                     }
                 }
             }
