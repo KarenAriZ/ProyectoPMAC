@@ -23,7 +23,13 @@ import com.karenarias.proyectopmac.ui.home.HomeViewModel
 import com.karenarias.proyectopmac.ui.cards.ScanCardScreen
 import com.karenarias.proyectopmac.ui.recharge.RechargeScreen
 import com.karenarias.proyectopmac.ui.support.SupportScreen
-
+import com.karenarias.proyectopmac.ui.cards.MyCardsScreen
+import com.karenarias.proyectopmac.data.cards.CardRepository
+import com.karenarias.proyectopmac.ui.cards.OfflineCardsScreen
+import androidx.fragment.app.FragmentActivity
+import com.karenarias.proyectopmac.OfflineAuthHelper
+import android.widget.Toast
+import com.karenarias.proyectopmac.OfflineSessionStorage
 
 /**
  * Grafo de navegación principal para MetroGo utilizando Navigation Compose.
@@ -37,9 +43,13 @@ fun MetroGoNavGraph(
     homeViewModel: HomeViewModel = viewModel(),
     claimsViewModel: ClaimsViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val session = authViewModel.session
+    var offlineAutorizado by remember {
+        mutableStateOf(false)
+    }
     LaunchedEffect(session?.user?.id) { claimsViewModel.bindUser(session?.user?.id) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -76,11 +86,58 @@ fun MetroGoNavGraph(
                 onLoginClick = {
                     authViewModel.login(
                         onSuccess = {
+                            authViewModel.session?.user?.id
+                                ?.takeIf { it.isNotBlank() }
+                                ?.let { userId ->
+                                    OfflineSessionStorage(context)
+                                        .guardarUsuario(userId)
+                                }
+
                             navController.navigate("home") {
                                 popUpTo("login") { inclusive = true }
                             }
                         }
                     )
+                },
+                onOfflineClick = {
+                    val userId = OfflineSessionStorage(context).obtenerUsuario()
+                    val activity = context as? FragmentActivity
+
+                    when {
+                        userId == null -> {
+                            Toast.makeText(
+                                context,
+                                "Al cerrar sesión, se desactivó el acceso offline. Inicia sesión nuevamente.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+
+                        activity == null -> {
+                            Toast.makeText(
+                                context,
+                                "No se pudo iniciar la autenticación.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+
+                        else -> {
+                            OfflineAuthHelper(activity).autenticar(
+                                onSuccess = {
+                                    offlineAutorizado = true
+                                    navController.navigate("offline_cards") {
+                                        launchSingleTop = true
+                                    }
+                                },
+                                onError = { mensaje ->
+                                    Toast.makeText(
+                                        context,
+                                        mensaje,
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
+                        }
+                    }
                 },
                 onNavigateToRegister = {
                     navController.navigate("register")
@@ -140,8 +197,14 @@ fun MetroGoNavGraph(
         // Pantalla Principal (Home)
         composable("home") {
             if (session != null && !session.isExpired()) {
-            var showProfile by remember { mutableStateOf(false) }
-            val context = LocalContext.current
+
+                LaunchedEffect(session.user.id) {
+                    session.user.id?.let { userId ->
+                        homeViewModel.cargarSaldoTarjeta(userId)
+                    }
+                }
+
+                var showProfile by remember { mutableStateOf(false) }
             var showContact by remember { mutableStateOf(false) }
             if (showProfile) {
                 UserProfileDialog(session.displayName, session.user.correoElectronico.orEmpty()) {
@@ -159,7 +222,7 @@ fun MetroGoNavGraph(
                 onTabSelected = { tab ->
                     when (tab) {
                         0 -> homeViewModel.onTabSelected(0)
-                        1 -> navController.navigate("scan_card") { launchSingleTop = true }
+                        1 -> navController.navigate("my_cards") { launchSingleTop = true }
                         2 -> navController.navigate("history") { launchSingleTop = true }
                         3 -> navController.navigate("recharge_card") { launchSingleTop = true }
                     }
@@ -168,7 +231,9 @@ fun MetroGoNavGraph(
                     navController.navigate("recharge_card") { launchSingleTop = true }
                 },
                 onMyCardsClick = {
-                    navController.navigate("scan_card") { launchSingleTop = true }
+                    navController.navigate("my_cards") {
+                        launchSingleTop = true
+                    }
                 },
                 onViewAllRechargesClick = {
                     navController.navigate("history") { launchSingleTop = true }
@@ -187,6 +252,7 @@ fun MetroGoNavGraph(
                 onClaimsClick = { navController.navigate("claims") { launchSingleTop = true } },
                 onLogoutClick = {
                     homeViewModel.onTabSelected(0)
+                    OfflineSessionStorage(context).borrarUsuario()
                     authViewModel.logout()
                 }
             )
@@ -247,7 +313,10 @@ fun MetroGoNavGraph(
                         catch (_: SecurityException) { showContact = true }
                     },
                     onClaims = { navController.navigate("claims") { launchSingleTop = true } },
-                    onLogout = { authViewModel.logout() }
+                    onLogout = {
+                        OfflineSessionStorage(context).borrarUsuario()
+                        authViewModel.logout()
+                    }
                 )
             }
         }
@@ -292,6 +361,16 @@ fun MetroGoNavGraph(
                     onBack = { navController.popBackStack() },
                     onCardSaved = { card ->
                         homeViewModel.updateCard(card.number, card.type)
+
+                        CardRepository.get(
+                            context = context,
+                            userId = session.user.id!!
+                        ).add(
+                            number = card.number,
+                            alias = "Mi tarjeta",
+                            type = card.type
+                        )
+
                         homeViewModel.onTabSelected(0)
                         navController.popBackStack("home", false)
                     }
@@ -311,7 +390,27 @@ fun MetroGoNavGraph(
                 RechargeScreen(
                     onProfileClick = { showProfile = true },
                     cardNumber = homeViewModel.cardNumber,
-                    onRechargeConfirmed = { amount, method -> homeViewModel.recordRecharge(amount, method) },
+                    onRechargeConfirmed = { amount, method ->
+                        homeViewModel.recordRecharge(amount, method)
+
+                        val userId = session.user.id
+
+                        if (!userId.isNullOrBlank()) {
+                            val actualizado = homeViewModel.aplicarRecargaConfirmada(
+                                userId = userId,
+                                numeroTarjeta = homeViewModel.cardNumber,
+                                monto = amount
+                            )
+
+                            if (!actualizado) {
+                                Toast.makeText(
+                                    context,
+                                    "Recarga registrada, pero no se pudo actualizar el saldo guardado.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    },
                     onRechargeRecorded = { record ->
                         claimsViewModel.recordRecharge(RechargeRecord(
                             record.id, "S/ ${record.monto}", record.fecha.substringBefore(" "),
@@ -323,11 +422,50 @@ fun MetroGoNavGraph(
                     onTabSelected = { tab ->
                         when (tab) {
                             0 -> navController.popBackStack("home", false)
-                            1 -> navController.navigate("scan_card") { launchSingleTop = true }
+                            1 -> navController.navigate("my_cards") { launchSingleTop = true }
                             2 -> navController.navigate("history") { launchSingleTop = true }
                         }
                     }
                 )
+            }
+        }
+        composable("my_cards") {
+            session
+                ?.takeIf { !it.isExpired() }
+                ?.user?.id
+                ?.takeIf { it.isNotBlank() }
+                ?.let { userId ->
+                MyCardsScreen(
+                    onBack = { navController.popBackStack() },
+                    onAddCard = {
+                        navController.navigate("scan_card") {
+                            launchSingleTop = true
+                        }
+                    },
+                    userId = userId
+                )
+            }
+        }
+        composable("offline_cards") {
+            val usuarioOffline =
+                OfflineSessionStorage(context).obtenerUsuario()
+
+            if (offlineAutorizado && usuarioOffline != null) {
+                OfflineCardsScreen(
+                    onBack = {
+                        offlineAutorizado = false
+                        navController.popBackStack()
+                    }
+                )
+            } else {
+                LaunchedEffect(Unit) {
+                    navController.navigate("login") {
+                        popUpTo("offline_cards") {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                }
             }
         }
     }

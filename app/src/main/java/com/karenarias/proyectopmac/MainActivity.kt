@@ -1,7 +1,7 @@
 package com.karenarias.proyectopmac
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,7 +18,7 @@ import com.karenarias.proyectopmac.data.notification.NotificacionHelper
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     private lateinit var conexionMonitor: ConexionMonitor
     private val solicitarPermisoNotificaciones =
         registerForActivityResult(

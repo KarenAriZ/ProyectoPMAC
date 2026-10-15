@@ -9,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import com.karenarias.proyectopmac.data.local.TarjetaLocalStorage
 import com.karenarias.proyectopmac.data.local.TarjetaOffline
 import com.karenarias.proyectopmac.ui.auth.RechargeUiModel
+import com.karenarias.proyectopmac.data.cards.CardRepository
 
 /**
  * ViewModel que administra el estado y los datos de la pantalla principal
@@ -31,9 +32,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     )
         private set
 
-    var cardBalance by mutableStateOf(
-        tarjetaLocalStorage.obtenerSaldoTarjeta() ?: "S/. 17.30"
-    )
+    var cardBalance by mutableStateOf("Saldo no disponible")
         private set
 
     var tarjetasOffline by mutableStateOf<List<TarjetaOffline>>(
@@ -96,8 +95,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun recordRecharge(amount: String, method: String) {
         val value = amount.toBigDecimalOrNull() ?: return
-        val balance = cardBalance.removePrefix("S/.").trim().toBigDecimalOrNull() ?: return
-        cardBalance = "S/. " + (balance + value).setScale(2).toPlainString()
         recharges = listOf(RechargeUiModel(
             "SIM-" + java.util.UUID.randomUUID(), "+ S/. " + value.setScale(2).toPlainString(),
             "Hoy · $method", "Recarga simulada", true
@@ -108,4 +105,52 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         // Pendiente: obtener el saldo actualizado desde el servicio de tarjetas.
         // No modificar el último saldo guardado sin una sincronización real.
     }
+
+    fun cargarSaldoTarjeta(userId: String) {
+        val repository = CardRepository.get(
+            getApplication(),
+            userId
+        )
+
+        val tarjetas = repository.activeCards()
+
+        val tarjeta = tarjetas.firstOrNull {
+            it.number == cardNumber
+        } ?: tarjetas.firstOrNull()
+
+        if (tarjeta != null) {
+            cardNumber = tarjeta.number
+            cardType = tarjeta.type
+
+            cardBalance = if (
+                tarjeta.saldo != null &&
+                tarjeta.ultimaSincronizacion != null
+            ) {
+                "S/ ${tarjeta.saldo}"
+            } else {
+                "Saldo no disponible"
+            }
+        } else {
+            cardBalance = "Saldo no disponible"
+        }
+    }
+    fun aplicarRecargaConfirmada(
+        userId: String,
+        numeroTarjeta: String,
+        monto: String
+    ): Boolean {
+        val repository = CardRepository.get(getApplication(), userId)
+
+        val tarjeta = repository.aplicarRecarga(
+            numeroTarjeta = numeroTarjeta,
+            monto = monto
+        ) ?: return false
+
+        if (tarjeta.number == cardNumber) {
+            cardBalance = "S/ ${tarjeta.saldo}"
+        }
+
+        return true
+    }
+
 }

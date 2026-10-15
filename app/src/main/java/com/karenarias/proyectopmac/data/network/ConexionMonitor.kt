@@ -1,9 +1,11 @@
+
 package com.karenarias.proyectopmac.data.network
 
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 
 class ConexionMonitor(
     context: Context,
@@ -13,15 +15,18 @@ class ConexionMonitor(
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
     private var estabaSinConexion = false
+    private var iniciado = false
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
 
         override fun onLost(network: Network) {
-            estabaSinConexion = !tieneInternet()
+            if (!tieneInternet()) {
+                estabaSinConexion = true
+            }
         }
 
-        override fun onAvailable(network: Network) {
-            // Esperamos a que Android confirme que hay internet.
+        override fun onUnavailable() {
+            estabaSinConexion = true
         }
 
         override fun onCapabilitiesChanged(
@@ -32,7 +37,7 @@ class ConexionMonitor(
                 NetworkCapabilities.NET_CAPABILITY_VALIDATED
             )
 
-            if (estabaSinConexion && internetValidado) {
+            if (internetValidado && estabaSinConexion) {
                 estabaSinConexion = false
                 alRecuperarConexion()
             }
@@ -40,12 +45,23 @@ class ConexionMonitor(
     }
 
     fun iniciar() {
+        if (iniciado) return
+
         estabaSinConexion = !tieneInternet()
-        connectivityManager.registerDefaultNetworkCallback(callback)
+
+        val solicitud = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+
+        connectivityManager.registerNetworkCallback(solicitud, callback)
+        iniciado = true
     }
 
     fun detener() {
+        if (!iniciado) return
+
         connectivityManager.unregisterNetworkCallback(callback)
+        iniciado = false
     }
 
     private fun tieneInternet(): Boolean {
