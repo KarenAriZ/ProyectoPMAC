@@ -13,15 +13,9 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
-/**
- * HU-004 y HU-006: conexión con el Lambda "metrogo-tarjetas" (carpeta aws/lambda_tarjetas del repositorio).
- *
- * Después de desplegar el API en AWS, pega aquí la URL de API Gateway
- * (por ejemplo "https://abc123.execute-api.us-east-1.amazonaws.com/").
- * Si se deja vacía, la app funciona en modo local con los datos guardados en el celular.
- */
+
 object TarjetasApiConfig {
-    const val BASE_URL = ""
+    const val BASE_URL = "https://kragcuw563.execute-api.us-east-1.amazonaws.com/"
 }
 
 /** Mismo formato de respuesta que las Lambdas de login y registro. */
