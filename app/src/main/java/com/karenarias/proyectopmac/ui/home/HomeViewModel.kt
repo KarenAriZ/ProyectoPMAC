@@ -1,27 +1,22 @@
+
 package com.karenarias.proyectopmac.ui.home
 
+import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
-import com.karenarias.proyectopmac.ui.auth.RechargeUiModel
-import androidx.lifecycle.viewModelScope
-import com.karenarias.proyectopmac.data.remote.RecargaRepository
-import kotlinx.coroutines.launch
-import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import com.karenarias.proyectopmac.data.local.TarjetaLocalStorage
 import com.karenarias.proyectopmac.data.local.TarjetaOffline
+import com.karenarias.proyectopmac.ui.auth.RechargeUiModel
 
 /**
- * ViewModel que administra el estado y los datos de la pantalla principal (HomeScreen)
- * para MetroGo (saldo, información de tarjeta y listado de recargas).
+ * ViewModel que administra el estado y los datos de la pantalla principal
+ * de MetroGo: saldo, información de tarjeta y listado de recargas.
  */
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val tarjetaLocalStorage = TarjetaLocalStorage(application)
-
-    private val recargaRepository = RecargaRepository()
 
     var userName by mutableStateOf("Juan")
         private set
@@ -49,60 +44,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     var selectedTab by mutableStateOf(0)
         private set
 
-    var recharges by mutableStateOf<List<RechargeUiModel>>(emptyList())
-        private set
-
-    fun cargarRecargas() {
-        viewModelScope.launch {
-            try {
-                val recargasAws = recargaRepository.obtenerRecargas()
-
-                recharges = recargasAws
-                    .filter { it.numeroTarjeta == cardNumber }
-                    .sortedByDescending { it.id }
-                    .map { recarga ->
-                        RechargeUiModel(
-                            id = recarga.id,
-                            amount = "+ S/. ${recarga.monto}",
-                            date = recarga.fecha,
-                            status = "Recarga simulada (${recarga.metodoPago})",
-                            isSuccess = true
-                        )
-                    }
-
-            } catch (e: Exception) {
-                android.util.Log.e(
-                    "METROGO_AWS",
-                    "Error al consultar el historial",
-                    e
-                )
-            }
-        }
-    }
-
-
-    fun addRecharge(amount: String, paymentMethod: String) {
-        val currentDate = java.text.SimpleDateFormat(
-            "dd/MM/yyyy HH:mm",
-            java.util.Locale.getDefault()
-        ).format(java.util.Date())
-
-        val newRecharge = RechargeUiModel(
-            id = System.currentTimeMillis().toString(),
-            amount = "+ S/. $amount",
-            date = currentDate,
-            status = "Recarga simulada ($paymentMethod)",
-            isSuccess = true
+    var recharges by mutableStateOf(
+        listOf(
+            RechargeUiModel("1", "+ S/. 20.00", "Hoy, 14:30", "Recarga exitosa", true),
+            RechargeUiModel("2", "+ S/. 10.00", "Ayer, 09:15", "Recarga exitosa", true),
+            RechargeUiModel("3", "+ S/. 15.00", "12 Oct, 18:45", "Error en recarga", false)
         )
-
-        recharges = listOf(newRecharge) + recharges
-    }
-
+    )
+        private set
 
     fun onTabSelected(tabIndex: Int) {
         selectedTab = tabIndex
     }
 
+    // HU-007: guardar una tarjeta para su consulta offline.
     fun guardarTarjetaLocal(
         numero: String,
         tipo: String,
@@ -114,15 +69,21 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         cardType = tipo
         cardBalance = saldo
     }
+
+    // HU-007: guardar la lista de tarjetas sincronizadas.
     fun guardarTarjetasSincronizadas(tarjetas: List<TarjetaOffline>) {
         tarjetaLocalStorage.guardarTarjetas(tarjetas)
         tarjetasOffline = tarjetas
+    }
+
+    // HU-003: mostrar en el inicio la tarjeta escaneada.
+    fun updateCard(number: String, type: String) {
+        cardNumber = number
+        cardType = type
     }
 
     fun refreshData() {
         // Pendiente: obtener el saldo actualizado desde el servicio de tarjetas.
         // No modificar el último saldo guardado sin una sincronización real.
     }
-
-
 }

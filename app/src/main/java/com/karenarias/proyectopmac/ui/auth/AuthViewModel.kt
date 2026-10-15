@@ -5,19 +5,55 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.karenarias.proyectopmac.data.repository.*
+import kotlinx.coroutines.CancellationException
+import java.io.IOException
+import java.io.InterruptedIOException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 /**
  * ViewModel que administra los estados y la lógica de autenticación (Login, Registro y Recuperación)
  * para la aplicación MetroGo, manteniendo las pantallas stateless y desacopladas.
  */
 class AuthViewModel : ViewModel() {
+    private val loginRepository by lazy { LoginRepository() }
+    private var loginJob: Job? = null
+    private var sessionJob: Job? = null
+    var session by mutableStateOf<UserSession?>(null)
+        private set
+
+    fun cancelLogin() {
+        loginJob?.cancel()
+        loginIsLoading = false
+        loginPassword = ""
+    }
+
+    fun logout() {
+        cancelLogin()
+        sessionJob?.cancel()
+        session = null
+        loginErrorMessage = null
+    }
+
+    fun checkSessionExpiration() {
+        if (session?.isExpired() == true) {
+            logout()
+            loginErrorMessage = "Tu sesión venció. Inicia sesión nuevamente."
+        }
+    }
+
+    private val registroRepository by lazy { RegistroRepository() }
+    var registerSucceeded by mutableStateOf(false)
+        private set
+
+    fun acknowledgeRegistration() { registerSucceeded = false }
 
     // --- Estado para LoginScreen ---
-    var loginEmail by mutableStateOf("karen@upc.edu")
+    var loginEmail by mutableStateOf("")
         private set
-    var loginPassword by mutableStateOf("123456")
+    var loginPassword by mutableStateOf("")
         private set
     var loginIsLoading by mutableStateOf(false)
         private set
@@ -35,29 +71,44 @@ class AuthViewModel : ViewModel() {
     }
 
     fun login(onSuccess: () -> Unit) {
-        if (loginEmail.isBlank() || loginPassword.isBlank()) {
-            loginErrorMessage = "Por favor completa todos los campos"
-            return
-        }
-
-        viewModelScope.launch {
-            loginIsLoading = true
-            loginErrorMessage = null
-            delay(1500) // Simulación de petición de red (backend / Firebase)
-            
-            // Simulación de credenciales válidas
-            if (loginEmail.contains("@") && loginPassword.length >= 6) {
-                loginIsLoading = false
+        if (loginIsLoading) return
+        val request = loginRequest(loginEmail, loginPassword)
+        loginErrorMessage = validarLogin(request)
+        if (loginErrorMessage != null) return
+        loginIsLoading = true
+        loginJob = viewModelScope.launch {
+            try {
+                session = loginRepository.login(request)
+                loginEmail = request.correoElectronico
+                loginPassword = ""
+                sessionJob?.cancel()
+                sessionJob = viewModelScope.launch {
+                    while (session != null) {
+                        val remaining = (session!!.expiresAt - System.currentTimeMillis() / 1000).coerceAtLeast(1)
+                        delay(remaining * 1000)
+                        checkSessionExpiration()
+                    }
+                }
                 onSuccess()
-            } else {
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: LoginException) {
+                loginErrorMessage = error.message
+            } catch (error: InterruptedIOException) {
+                loginErrorMessage = "El servidor tardó demasiado. Vuelve a intentarlo."
+            } catch (error: IOException) {
+                loginErrorMessage = "No pudimos conectarnos. Revisa tu conexión e inténtalo nuevamente."
+            } catch (error: Exception) {
+                loginErrorMessage = "No se pudo interpretar la respuesta del servidor. Inténtalo más tarde."
+            } finally {
                 loginIsLoading = false
-                loginErrorMessage = "Correo inválido o contraseña menor a 6 caracteres"
             }
         }
     }
-
     // --- Estado para RegisterScreen ---
-    var registerFullName by mutableStateOf("")
+    var registerFirstName by mutableStateOf("")
+        private set
+    var registerLastName by mutableStateOf("")
         private set
     var registerEmail by mutableStateOf("")
         private set
@@ -70,8 +121,13 @@ class AuthViewModel : ViewModel() {
     var registerErrorMessage by mutableStateOf<String?>(null)
         private set
 
-    fun onRegisterFullNameChanged(name: String) {
-        registerFullName = name
+    fun onRegisterFirstNameChanged(name: String) {
+        registerFirstName = name
+        registerErrorMessage = null
+    }
+
+    fun onRegisterLastNameChanged(lastName: String) {
+        registerLastName = lastName
         registerErrorMessage = null
     }
 
@@ -90,25 +146,40 @@ class AuthViewModel : ViewModel() {
         registerErrorMessage = null
     }
 
-    fun register(onSuccess: () -> Unit) {
-        if (registerFullName.isBlank() || registerEmail.isBlank() || registerPassword.isBlank() || registerConfirmPassword.isBlank()) {
-            registerErrorMessage = "Todos los campos son obligatorios"
-            return
-        }
-        if (registerPassword != registerConfirmPassword) {
-            registerErrorMessage = "Las contraseñas no coinciden"
-            return
-        }
+    fun register() {
+        if (registerIsLoading || registerSucceeded) return
+        val request = registroRequest(registerFirstName, registerLastName, registerEmail, registerPassword)
+        registerErrorMessage = validarRegistro(request, registerConfirmPassword)
+        if (registerErrorMessage != null) return
 
+        registerIsLoading = true
         viewModelScope.launch {
-            registerIsLoading = true
-            registerErrorMessage = null
-            delay(1500) // Simulación de registro exitoso
-            registerIsLoading = false
-            onSuccess()
+            try {
+                registroRepository.registrar(request)
+                loginEmail = request.correoElectronico
+                loginPassword = ""
+                loginErrorMessage = null
+                registerFirstName = ""
+                registerLastName = ""
+                registerEmail = ""
+                registerPassword = ""
+                registerConfirmPassword = ""
+                registerSucceeded = true
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: RegistroException) {
+                registerErrorMessage = error.message
+            } catch (error: InterruptedIOException) {
+                registerErrorMessage = "Se agotó el tiempo de espera. No pudimos confirmar el registro. Si al reintentar el correo ya existe, la cuenta pudo haberse creado."
+            } catch (error: IOException) {
+                registerErrorMessage = "No pudimos confirmar el registro. Revisa tu conexión. Si al reintentar el correo ya existe, la cuenta pudo haberse creado."
+            } catch (error: Exception) {
+                registerErrorMessage = "No se pudo interpretar la respuesta del servidor. Inténtalo más tarde."
+            } finally {
+                registerIsLoading = false
+            }
         }
     }
-
     // --- Estado para ForgotPasswordScreen ---
     var forgotEmail by mutableStateOf("")
         private set
@@ -141,3 +212,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 }
+
+
+
+

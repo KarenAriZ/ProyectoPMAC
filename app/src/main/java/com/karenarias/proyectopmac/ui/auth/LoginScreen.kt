@@ -83,6 +83,7 @@ fun LoginScreen(
 
                 // Campos de texto
                 AuthTextField(
+                    enabled = !isLoading,
                     value = email,
                     onValueChange = onEmailChange,
                     placeholder = "Correo electrónico",
@@ -90,6 +91,7 @@ fun LoginScreen(
                 )
 
                 AuthTextField(
+                    enabled = !isLoading,
                     value = password,
                     onValueChange = onPasswordChange,
                     placeholder = "Contraseña",
@@ -112,7 +114,7 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.CenterEnd
                 ) {
-                    TextButton(onClick = onNavigateToForgotPassword) {
+                    TextButton(onClick = onNavigateToForgotPassword, enabled = !isLoading) {
                         Text(
                             text = "¿Olvidaste tu contraseña?",
                             color = PurplePrimary,
@@ -141,7 +143,7 @@ fun LoginScreen(
                         color = PurpleDark,
                         fontSize = 13.sp
                     )
-                    TextButton(onClick = onNavigateToRegister) {
+                    TextButton(onClick = onNavigateToRegister, enabled = !isLoading) {
                         Text(
                             text = "Regístrate",
                             color = PurplePrimary,
@@ -175,3 +177,4 @@ fun LoginScreenPreview() {
         )
     }
 }
+
