@@ -34,6 +34,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     var cardBalance by mutableStateOf("Saldo no disponible")
         private set
+    val isLowBalance: Boolean
+        get() = cardBalance
+            .replace("S/", "")
+            .trim()
+            .toDoubleOrNull()
+            ?.let { it < 5.0 } ?: false
 
     var tarjetasOffline by mutableStateOf<List<TarjetaOffline>>(
         tarjetaLocalStorage.obtenerTarjetas()

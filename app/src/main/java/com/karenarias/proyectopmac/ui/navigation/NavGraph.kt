@@ -18,18 +18,19 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.karenarias.proyectopmac.OfflineSessionStorage
 import com.karenarias.proyectopmac.ui.auth.*
+import com.karenarias.proyectopmac.ui.card.CardStatusRoute
 import com.karenarias.proyectopmac.ui.home.HomeViewModel
+import com.karenarias.proyectopmac.ui.map.RechargeMapRoute
 import com.karenarias.proyectopmac.ui.cards.ScanCardScreen
+import com.karenarias.proyectopmac.ui.cards.MyCardsScreen
+import com.karenarias.proyectopmac.ui.cards.OfflineCardsScreen
 import com.karenarias.proyectopmac.ui.recharge.RechargeScreen
 import com.karenarias.proyectopmac.ui.support.SupportScreen
-import com.karenarias.proyectopmac.ui.cards.MyCardsScreen
-import com.karenarias.proyectopmac.data.cards.CardRepository
-import com.karenarias.proyectopmac.ui.cards.OfflineCardsScreen
+import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import com.karenarias.proyectopmac.OfflineAuthHelper
-import android.widget.Toast
-import com.karenarias.proyectopmac.OfflineSessionStorage
 
 /**
  * Grafo de navegación principal para MetroGo utilizando Navigation Compose.
@@ -54,13 +55,16 @@ fun MetroGoNavGraph(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) authViewModel.checkSessionExpiration()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                authViewModel.checkSessionExpiration()
+                homeViewModel.refreshData() // HU-004: saldo actualizado al volver a la app
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(session, currentRoute) {
-        if (currentRoute in listOf("home", "claims", "claims/{claimId}", "history", "recharge/{rechargeId}", "new_claim/{rechargeId}", "scan_card", "recharge_card", "support") &&
+        if (currentRoute in listOf("home", "claims", "claims/{claimId}", "history", "recharge/{rechargeId}", "new_claim/{rechargeId}", "scan_card", "recharge_card", "support", "card_status", "recharge_points", "my_cards") &&
             (session == null || session.isExpired())) {
             authViewModel.checkSessionExpiration()
             navController.navigate("login") {
@@ -75,7 +79,6 @@ fun MetroGoNavGraph(
         modifier = modifier
     ) {
         // Pantalla de Login
-
         composable("login") {
             DisposableEffect(Unit) { onDispose { authViewModel.cancelLogin() } }
             LoginScreen(
@@ -86,13 +89,6 @@ fun MetroGoNavGraph(
                 onLoginClick = {
                     authViewModel.login(
                         onSuccess = {
-                            authViewModel.session?.user?.id
-                                ?.takeIf { it.isNotBlank() }
-                                ?.let { userId ->
-                                    OfflineSessionStorage(context)
-                                        .guardarUsuario(userId)
-                                }
-
                             navController.navigate("home") {
                                 popUpTo("login") { inclusive = true }
                             }
@@ -204,7 +200,10 @@ fun MetroGoNavGraph(
                     }
                 }
 
-                var showProfile by remember { mutableStateOf(false) }
+            // HU-004: al volver a Inicio (por ejemplo desde "Mi tarjeta") se vuelve a leer el saldo.
+            LaunchedEffect(Unit) { homeViewModel.refreshData() }
+            var showProfile by remember { mutableStateOf(false) }
+            val context = LocalContext.current
             var showContact by remember { mutableStateOf(false) }
             if (showProfile) {
                 UserProfileDialog(session.displayName, session.user.correoElectronico.orEmpty()) {
@@ -219,6 +218,9 @@ fun MetroGoNavGraph(
                 cardBalance = homeViewModel.cardBalance,
                 recharges = homeViewModel.recharges,
                 selectedTab = homeViewModel.selectedTab,
+                isLowBalance = homeViewModel.isLowBalance, // HU-004
+                onBalanceClick = { navController.navigate("card_status") { launchSingleTop = true } }, // HU-004
+                onRechargePointsClick = { navController.navigate("recharge_points") { launchSingleTop = true } }, // HU-006
                 onTabSelected = { tab ->
                     when (tab) {
                         0 -> homeViewModel.onTabSelected(0)
@@ -252,7 +254,6 @@ fun MetroGoNavGraph(
                 onClaimsClick = { navController.navigate("claims") { launchSingleTop = true } },
                 onLogoutClick = {
                     homeViewModel.onTabSelected(0)
-                    OfflineSessionStorage(context).borrarUsuario()
                     authViewModel.logout()
                 }
             )
@@ -262,14 +263,8 @@ fun MetroGoNavGraph(
             if (session != null && !session.isExpired()) {
                 val selectedCard by claimsViewModel.selectedCard.collectAsState()
                 val selectedFilter by claimsViewModel.selectedFilter.collectAsState()
-
                 ClaimsScreen(
-                    onHistory = {
-                        navController.navigate("history") {
-                            popUpTo("home")
-                            launchSingleTop = true
-                        }
-                    },
+                    onHistory = { navController.navigate("history") { popUpTo("home"); launchSingleTop = true } },
                     claims = claimsViewModel.claims,
                     cards = claimsViewModel.cards,
                     selectedCard = selectedCard,
@@ -313,10 +308,7 @@ fun MetroGoNavGraph(
                         catch (_: SecurityException) { showContact = true }
                     },
                     onClaims = { navController.navigate("claims") { launchSingleTop = true } },
-                    onLogout = {
-                        OfflineSessionStorage(context).borrarUsuario()
-                        authViewModel.logout()
-                    }
+                    onLogout = { authViewModel.logout() }
                 )
             }
         }
@@ -361,23 +353,13 @@ fun MetroGoNavGraph(
                     onBack = { navController.popBackStack() },
                     onCardSaved = { card ->
                         homeViewModel.updateCard(card.number, card.type)
-
-                        CardRepository.get(
-                            context = context,
-                            userId = session.user.id!!
-                        ).add(
-                            number = card.number,
-                            alias = "Mi tarjeta",
-                            type = card.type
-                        )
-
                         homeViewModel.onTabSelected(0)
                         navController.popBackStack("home", false)
-                    }
+                    },
+                    userId = session.user.id!!,
                 )
             }
         }
-
         composable("support") {
             if (session != null && !session.isExpired()) {
                 SupportScreen(onBack = { navController.popBackStack() })
@@ -390,27 +372,7 @@ fun MetroGoNavGraph(
                 RechargeScreen(
                     onProfileClick = { showProfile = true },
                     cardNumber = homeViewModel.cardNumber,
-                    onRechargeConfirmed = { amount, method ->
-                        homeViewModel.recordRecharge(amount, method)
-
-                        val userId = session.user.id
-
-                        if (!userId.isNullOrBlank()) {
-                            val actualizado = homeViewModel.aplicarRecargaConfirmada(
-                                userId = userId,
-                                numeroTarjeta = homeViewModel.cardNumber,
-                                monto = amount
-                            )
-
-                            if (!actualizado) {
-                                Toast.makeText(
-                                    context,
-                                    "Recarga registrada, pero no se pudo actualizar el saldo guardado.",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        }
-                    },
+                    onRechargeConfirmed = { amount, method -> homeViewModel.recordRecharge(amount, method) },
                     onRechargeRecorded = { record ->
                         claimsViewModel.recordRecharge(RechargeRecord(
                             record.id, "S/ ${record.monto}", record.fecha.substringBefore(" "),
@@ -418,7 +380,7 @@ fun MetroGoNavGraph(
                             ClaimCard("card-${record.numeroTarjeta}", record.numeroTarjeta.takeLast(4), homeViewModel.cardType)
                         ))
                     },
-                    onCardsClick = { navController.navigate("scan_card") { launchSingleTop = true } },
+                    onCardsClick = { navController.navigate("my_cards") { launchSingleTop = true } },
                     onTabSelected = { tab ->
                         when (tab) {
                             0 -> navController.popBackStack("home", false)
@@ -429,6 +391,29 @@ fun MetroGoNavGraph(
                 )
             }
         }
+
+        // HU-004: saldo y estado de la tarjeta + alerta de saldo bajo
+        composable("card_status") {
+            if (session != null && !session.isExpired()) {
+                CardStatusRoute(
+                    onBack = {
+                        homeViewModel.refreshData()
+                        navController.popBackStack()
+                    },
+                    onOpenRechargePoints = { navController.navigate("recharge_points") { launchSingleTop = true } }
+                )
+            }
+        }
+
+        // HU-006: mapa de puntos de recarga física + alertas de paraderos próximos
+        composable("recharge_points") {
+            if (session != null && !session.isExpired()) {
+                RechargeMapRoute(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+        }
+
         composable("my_cards") {
             session
                 ?.takeIf { !it.isExpired() }

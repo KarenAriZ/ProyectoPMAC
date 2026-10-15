@@ -53,7 +53,10 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     onContactClick: () -> Unit = {},
     onClaimsClick: () -> Unit = {},
-    onLogoutClick: () -> Unit = {}
+    onLogoutClick: () -> Unit = {},
+    isLowBalance: Boolean = false,              // HU-004
+    onBalanceClick: () -> Unit = {},            // HU-004: abre "Mi tarjeta" (saldo, estado y alertas)
+    onRechargePointsClick: () -> Unit = {}      // HU-006
 ) {
     var balanceVisible by remember { mutableStateOf(true) }
 
@@ -180,10 +183,12 @@ fun HomeScreen(
                 )
             }
 
-            // Tarjeta de saldo principal
+            // Tarjeta de saldo principal (HU-004: al tocarla se abre "Mi tarjeta")
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onBalanceClick() },
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = PurpleDark),
                     elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
@@ -258,6 +263,48 @@ fun HomeScreen(
                                 fontWeight = FontWeight.Bold
                             )
                         }
+
+                        // HU-004: acceso a saldo, estado de la tarjeta y alertas
+                        Text(
+                            text = "Ver estado y alertas de saldo >",
+                            color = MauveAccent,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            // HU-004: aviso de saldo bajo dentro de la app
+            if (isLowBalance) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onBalanceClick() },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = ErrorWine.copy(alpha = 0.10f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = ErrorWine)
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    text = "Saldo bajo",
+                                    color = ErrorWine,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    text = "Recarga pronto para no quedarte varado en la estación.",
+                                    color = PurpleDark,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -280,6 +327,57 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f),
                         onClick = onMyCardsClick
                     )
+                }
+            }
+
+            // HU-006: acceso al mapa de puntos de recarga
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onRechargePointsClick() },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardWhite),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(BackgroundCream),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Map,
+                                contentDescription = null,
+                                tint = PurplePrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = "Puntos de recarga cercanos",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PurpleDark
+                            )
+                            Text(
+                                text = "Encuentra dónde recargar en efectivo",
+                                fontSize = 12.sp,
+                                color = PurpleDark.copy(alpha = 0.7f)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = PurplePrimary
+                        )
+                    }
                 }
             }
 

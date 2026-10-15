@@ -1,6 +1,16 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+// HU-006: la API key de Google Maps se guarda en local.properties (no se sube a GitHub).
+val mapsApiKey: String = run {
+    val props = Properties()
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { props.load(it) }
+    props.getProperty("MAPS_API_KEY") ?: ""
 }
 
 android {
@@ -17,6 +27,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {
@@ -53,6 +64,9 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
     // HU-003: OCR para leer el número de la tarjeta (modelo incluido, funciona offline)
     implementation(libs.mlkit.text.recognition)
+    // HU-006: Google Maps en Compose y ubicación del usuario
+    implementation("com.google.maps.android:maps-compose:6.4.1")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
