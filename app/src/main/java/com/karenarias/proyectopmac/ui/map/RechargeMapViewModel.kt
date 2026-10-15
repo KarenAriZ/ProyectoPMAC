@@ -7,13 +7,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.karenarias.proyectopmac.data.recharge.NEARBY_ALERT_RADIUS_METERS
 import com.karenarias.proyectopmac.data.recharge.NearbyPoint
 import com.karenarias.proyectopmac.data.recharge.ProximityTracker
 import com.karenarias.proyectopmac.data.recharge.RechargePoint
 import com.karenarias.proyectopmac.data.recharge.RechargePointsRepository
+import com.karenarias.proyectopmac.data.recharge.fetchFromAws
 import com.karenarias.proyectopmac.data.recharge.nearestPoints
 import com.karenarias.proyectopmac.notifications.MetroGoNotifications
+import kotlinx.coroutines.launch
 
 /**
  * HU-006: estado del mapa de puntos de recarga y de las alertas de paraderos próximos.
@@ -23,7 +26,14 @@ class RechargeMapViewModel(application: Application) : AndroidViewModel(applicat
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val tracker = ProximityTracker()
 
-    val points: List<RechargePoint> = RechargePointsRepository.points
+    /** HU-006: estaciones con recarga. Primero las guardadas en la app; luego las de AWS. */
+    var points by mutableStateOf(RechargePointsRepository.points)
+        private set
+
+    /** true cuando la lista viene del Lambda de AWS (tabla PuntosRecarga). */
+    var pointsFromAws by mutableStateOf(false)
+        private set
+
 
     /** null mientras no se conozca la ubicación del usuario. */
     var userLatitude by mutableStateOf<Double?>(null)
@@ -69,6 +79,21 @@ class RechargeMapViewModel(application: Application) : AndroidViewModel(applicat
 
     fun onNotificationPermissionChanged() {
         notificationsAllowed = MetroGoNotifications.canPostNotifications(getApplication())
+    }
+
+    // Se ubica al final para que todas las propiedades ya estén inicializadas.
+    init {
+        viewModelScope.launch {
+            val remote = RechargePointsRepository.fetchFromAws()
+            if (!remote.isNullOrEmpty()) {
+                points = remote
+                pointsFromAws = true
+                // Si ya se conoce la ubicación, se recalculan las distancias con la lista nueva.
+                val lat = userLatitude
+                val lng = userLongitude
+                if (lat != null && lng != null) onLocationUpdate(lat, lng)
+            }
+        }
     }
 
     private companion object {

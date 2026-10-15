@@ -133,6 +133,7 @@ fun RechargeMapRoute(
         alertsEnabled = viewModel.alertsEnabled,
         notificationsAllowed = viewModel.notificationsAllowed,
         mapsApiKeyMissing = viewModel.mapsApiKeyMissing,
+        pointsFromAws = viewModel.pointsFromAws,
         onBack = onBack,
         onRequestLocation = {
             locationLauncher.launch(
@@ -167,7 +168,8 @@ fun RechargeMapScreen(
     onRequestLocation: () -> Unit,
     onAlertsEnabledChanged: (Boolean) -> Unit,
     onOpenDirections: (RechargePoint) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pointsFromAws: Boolean = false
 ) {
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(LatLng(DEFAULT_MAP_LATITUDE, DEFAULT_MAP_LONGITUDE), 13f)
@@ -341,7 +343,8 @@ fun RechargeMapScreen(
 
                     item {
                         Text(
-                            "Ubicaciones referenciales. Verifica el horario de atención en la estación.",
+                            (if (pointsFromAws) "Estaciones cargadas desde AWS. " else "Estaciones guardadas en la app. ") +
+                                "Ubicaciones referenciales. Verifica el horario de atención en la estación.",
                             fontSize = 11.sp,
                             color = PurpleDark.copy(alpha = 0.5f)
                         )

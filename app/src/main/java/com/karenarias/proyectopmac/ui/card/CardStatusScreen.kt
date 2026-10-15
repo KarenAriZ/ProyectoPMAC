@@ -67,6 +67,7 @@ fun CardStatusRoute(
     CardStatusScreen(
         status = viewModel.status,
         isRefreshing = viewModel.isRefreshing,
+        syncMessage = viewModel.syncMessage,
         notificationsAllowed = viewModel.notificationsAllowed,
         onBack = onBack,
         onRefresh = viewModel::refresh,
@@ -119,7 +120,8 @@ fun CardStatusScreen(
     onOpenRechargePoints: () -> Unit,
     onSimulateTrip: () -> Unit,
     onResetDemoBalance: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    syncMessage: String? = null
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -135,6 +137,20 @@ fun CardStatusScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             BalanceCard(status = status, isRefreshing = isRefreshing, onRefresh = onRefresh)
+
+            // De dónde vienen los datos: AWS o la copia guardada en el celular.
+            if (syncMessage != null) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val fromAws = syncMessage.startsWith("Sincronizado")
+                    Icon(
+                        if (fromAws) Icons.Default.CloudDone else Icons.Default.CloudOff,
+                        contentDescription = null,
+                        tint = if (fromAws) ActiveGreen else ErrorWine,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(syncMessage, color = PurpleDark.copy(alpha = 0.7f), fontSize = 12.sp)
+                }
+            }
 
             if (status.isLowBalance) {
                 LowBalanceWarning(status = status, onOpenRechargePoints = onOpenRechargePoints)
