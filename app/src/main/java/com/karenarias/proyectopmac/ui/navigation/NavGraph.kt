@@ -14,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.karenarias.proyectopmac.ui.auth.*
 import com.karenarias.proyectopmac.ui.home.HomeViewModel
+import com.karenarias.proyectopmac.ui.cards.MyCardsScreen
 import com.karenarias.proyectopmac.ui.cards.ScanCardScreen
 import com.karenarias.proyectopmac.ui.support.SupportScreen
 
@@ -143,9 +144,7 @@ fun MetroGoNavGraph(
                 onRechargeClick = {
                     // Acción de recarga (fases posteriores)
                 },
-                onMyCardsClick = {
-                    // Acción de tarjetas (fases posteriores)
-                },
+                onMyCardsClick = { navController.navigate("my_cards") },  // HU-008
                 onViewAllRechargesClick = {
                     // Acción de historial (fases posteriores)
                 },
@@ -170,7 +169,7 @@ fun MetroGoNavGraph(
                 selectedTab = homeViewModel.selectedTab,
                 onTabSelected = { homeViewModel.onTabSelected(it) },
                 onRechargeClick = {},
-                onMyCardsClick = {},
+                onMyCardsClick = { navController.navigate("my_cards") },
                 onViewAllRechargesClick = {},
                 onProfileClick = {},
                 onScanCardClick = { navController.navigate("scan_card") },
@@ -186,6 +185,14 @@ fun MetroGoNavGraph(
                     homeViewModel.updateCard(card.number, card.type)
                     navController.popBackStack()
                 }
+            )
+        }
+
+        // HU-008: Mis tarjetas — eliminar (borrado lógico: estado INACTIVA)
+        composable("my_cards") {
+            MyCardsScreen(
+                onBack = { navController.popBackStack() },
+                onAddCard = { navController.navigate("scan_card") }
             )
         }
 

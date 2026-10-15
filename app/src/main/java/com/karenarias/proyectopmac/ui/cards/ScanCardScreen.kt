@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.karenarias.proyectopmac.data.cards.CardRepository
 import com.karenarias.proyectopmac.ui.components.PrimaryButton
 import com.karenarias.proyectopmac.ui.theme.*
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +80,8 @@ fun ScanCardScreen(
             text = { Text("Tu tarjeta ${card.alias} (${card.number}) se agregó a tu cuenta.") },
             confirmButton = {
                 TextButton(onClick = {
+                    // HU-008: se guarda en "Mis tarjetas" (estado ACTIVA)
+                    CardRepository.get(context).add(card.number, card.alias, card.type)
                     onCardSaved(card)
                     viewModel.reset()
                 }) { Text("Aceptar", color = PurplePrimary) }
