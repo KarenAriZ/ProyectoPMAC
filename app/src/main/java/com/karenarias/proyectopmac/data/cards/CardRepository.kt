@@ -15,8 +15,14 @@ interface CardStorage {
 }
 
 /** Almacenamiento local con SharedPreferences (las tarjetas sobreviven al cerrar la app). */
-class SharedPrefsCardStorage(context: Context) : CardStorage {
-    private val prefs = context.getSharedPreferences("metrogo_cards", Context.MODE_PRIVATE)
+class SharedPrefsCardStorage(
+    context: Context,
+    userId: String
+) : CardStorage {
+    private val prefs = context.getSharedPreferences(
+        "metrogo_cards_$userId",
+        Context.MODE_PRIVATE
+    )
     private val gson = Gson()
 
     override fun load(): List<SavedCard> {
@@ -76,6 +82,55 @@ class CardRepository(private val storage: CardStorage) {
         return active
     }
 
+
+    /**
+     * HU-007: guarda el último saldo de demostración
+     * y la fecha de sincronización de una tarjeta.
+     */
+    fun sincronizarSaldoDemostracion(
+        cardId: String,
+        saldo: String
+    ): SavedCard? {
+        val card = _cards.value.firstOrNull {
+            it.id == cardId && it.isActive
+        } ?: return null
+
+        val updated = card.copy(
+            saldo = saldo,
+            ultimaSincronizacion = System.currentTimeMillis(),
+            saldoDemostracion = true
+        )
+
+        replace(updated)
+        return updated
+    }
+    fun aplicarRecarga(
+        numeroTarjeta: String,
+        monto: String
+    ): SavedCard? {
+        val importe = monto.toBigDecimalOrNull() ?: return null
+        if (importe <= java.math.BigDecimal.ZERO) return null
+
+        val tarjeta = _cards.value.firstOrNull {
+            it.number == numeroTarjeta && it.isActive
+        } ?: return null
+
+        val saldoAnterior = tarjeta.saldo?.toBigDecimalOrNull()
+            ?: return null
+
+        val nuevoSaldo = saldoAnterior.add(importe)
+            .setScale(2, java.math.RoundingMode.HALF_UP)
+            .toPlainString()
+
+        val actualizada = tarjeta.copy(
+            saldo = nuevoSaldo,
+            ultimaSincronizacion = System.currentTimeMillis()
+        )
+
+        replace(actualizada)
+        return actualizada
+    }
+
     private fun replace(card: SavedCard) = update(_cards.value.map { if (it.id == card.id) card else it })
 
     private fun update(list: List<SavedCard>) {
@@ -84,14 +139,55 @@ class CardRepository(private val storage: CardStorage) {
     }
 
     companion object {
-        @Volatile private var instance: CardRepository? = null
+        private val instances = mutableMapOf<String, CardRepository>()
 
-        fun get(context: Context): CardRepository = instance ?: synchronized(this) {
-            instance ?: CardRepository(SharedPrefsCardStorage(context.applicationContext)).also { repo ->
-                // Tarjeta de ejemplo del Inicio para que la lista no empiece vacía.
-                if (repo.cards.value.isEmpty()) repo.add("8754785478", "Mi tarjeta", "Estudiante")
-                instance = repo
+        fun get(context: Context, userId: String): CardRepository =
+            synchronized(this) {
+                require(userId.isNotBlank()) {
+                    "Se necesita un usuario autenticado"
+                }
+
+                instances.getOrPut(userId) {
+                    val nuevoStorage = SharedPrefsCardStorage(
+                        context.applicationContext,
+                        userId
+                    )
+
+                    val prefsAntiguas = context.getSharedPreferences(
+                        "metrogo_cards",
+                        Context.MODE_PRIVATE
+                    )
+
+                    val migracionRealizada = prefsAntiguas.getBoolean(
+                        "migracion_realizada",
+                        false
+                    )
+
+                    if (!migracionRealizada) {
+                        val tarjetasAntiguas = prefsAntiguas.getString("cards", null)
+
+                        if (tarjetasAntiguas != null && nuevoStorage.load().isEmpty()) {
+                            val tipo = object : TypeToken<List<SavedCard>>() {}.type
+
+                            val tarjetas = runCatching {
+                                Gson().fromJson<List<SavedCard>>(
+                                    tarjetasAntiguas,
+                                    tipo
+                                )
+                            }.getOrNull()
+
+                            if (tarjetas != null) {
+                                nuevoStorage.save(tarjetas)
+                            }
+                        }
+
+                        prefsAntiguas.edit()
+                            .putBoolean("migracion_realizada", true)
+                            .apply()
+                    }
+
+                    CardRepository(nuevoStorage)
+                }
             }
-        }
     }
 }

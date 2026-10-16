@@ -34,6 +34,7 @@ fun LoginScreen(
     password: String,
     onPasswordChange: (String) -> Unit,
     onLoginClick: () -> Unit,
+    onOfflineClick: () -> Unit = {},
     onNavigateToRegister: () -> Unit,
     onNavigateToForgotPassword: () -> Unit,
     modifier: Modifier = Modifier,
@@ -175,6 +176,16 @@ fun LoginScreen(
                     onClick = onLoginClick,
                     isLoading = isLoading
                 )
+                TextButton(
+                    onClick = onOfflineClick,
+                    enabled = !isLoading
+                ) {
+                    Text(
+                        text = "Consultar mis tarjetas sin conexión",
+                        color = PurplePrimary,
+                        fontSize = 14.sp
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(4.dp))
 

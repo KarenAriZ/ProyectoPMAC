@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-
+import com.karenarias.proyectopmac.data.cards.CardRepository
 import com.karenarias.proyectopmac.ui.components.PrimaryButton
 import com.karenarias.proyectopmac.ui.theme.*
 import kotlinx.coroutines.Dispatchers
@@ -52,13 +52,9 @@ import java.io.File
 fun ScanCardScreen(
     onBack: () -> Unit,
     onCardSaved: (DigitalCard) -> Unit,
-    viewModel: ScanCardViewModel = viewModel(),
-    isSaving: Boolean = false,
-    saveError: String? = null,
-    onSaveCard: (DigitalCard, () -> Unit) -> Unit = { _, _ -> }
+    viewModel: ScanCardViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    var remoteSaved by remember { mutableStateOf(false) }
     var pendingUri by remember { mutableStateOf<Uri?>(null) }
 
     // Cámara: guarda la foto en tamaño completo en el Uri que le damos (mejor para el OCR).
@@ -76,7 +72,7 @@ fun ScanCardScreen(
         if (uri != null) viewModel.onPhotoCaptured(context, uri)
     }
 
-    viewModel.savedCard?.takeIf { remoteSaved }?.let { card ->
+    viewModel.savedCard?.let { card ->
         AlertDialog(
             onDismissRequest = {},
             icon = { Icon(Icons.Default.CheckCircle, null, tint = PurplePrimary) },
@@ -84,7 +80,8 @@ fun ScanCardScreen(
             text = { Text("Tu tarjeta ${card.alias} (${card.number}) se agregó a tu cuenta.") },
             confirmButton = {
                 TextButton(onClick = {
-                    remoteSaved = false
+                    // HU-008: se guarda en "Mis tarjetas" (estado ACTIVA)
+                    CardRepository.get(context).add(card.number, card.alias, card.type)
                     onCardSaved(card)
                     viewModel.reset()
                 }) { Text("Aceptar", color = PurplePrimary) }
@@ -190,7 +187,6 @@ fun ScanCardScreen(
             }
 
             OutlinedTextField(
-                enabled = !isSaving && !remoteSaved,
                 value = viewModel.cardNumber,
                 onValueChange = viewModel::onCardNumberChange,
                 label = { Text("Número de tarjeta") },
@@ -199,11 +195,10 @@ fun ScanCardScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = metroGoTextFieldColors()
+                colors = fieldColors()
             )
 
             OutlinedTextField(
-                enabled = !isSaving && !remoteSaved,
                 value = viewModel.alias,
                 onValueChange = viewModel::onAliasChange,
                 label = { Text("Alias (ej. Tarjeta de mamá)") },
@@ -211,7 +206,7 @@ fun ScanCardScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = metroGoTextFieldColors()
+                colors = fieldColors()
             )
 
             Text("Tipo de tarjeta", color = PurpleDark, fontWeight = FontWeight.Medium)
@@ -233,15 +228,10 @@ fun ScanCardScreen(
                 Text(it, color = ErrorWine, fontSize = 13.sp)
             }
 
-            saveError?.let { Text(it, color = ErrorWine, fontSize = 13.sp) }
             PrimaryButton(
                 text = "Guardar tarjeta",
-                onClick = {
-                    if (!isSaving && !viewModel.isProcessing && !remoteSaved) {
-                        viewModel.saveCard()?.let { draft -> onSaveCard(draft) { remoteSaved = true } }
-                    }
-                },
-                isLoading = viewModel.isProcessing || isSaving
+                onClick = { viewModel.saveCard() },
+                isLoading = viewModel.isProcessing
             )
             Spacer(Modifier.height(16.dp))
         }
@@ -294,6 +284,15 @@ private fun PhotoPreview(uri: Uri?, isProcessing: Boolean) {
     }
 }
 
+@Composable
+private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = PurplePrimary,
+    unfocusedBorderColor = MauveAccent,
+    focusedLabelColor = PurplePrimary,
+    cursorColor = PurplePrimary,
+    focusedContainerColor = CardWhite,
+    unfocusedContainerColor = CardWhite
+)
 
 /** Crea un archivo temporal para la foto y devuelve su Uri seguro (FileProvider). */
 private fun createPhotoUri(context: Context): Uri {

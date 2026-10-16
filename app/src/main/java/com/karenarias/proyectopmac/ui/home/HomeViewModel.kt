@@ -1,149 +1,114 @@
 package com.karenarias.proyectopmac.ui.home
 
+import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.karenarias.proyectopmac.data.remote.UserCard
-import com.karenarias.proyectopmac.data.repository.*
+import com.karenarias.proyectopmac.data.card.CardRepository
+import com.karenarias.proyectopmac.data.card.CardStatus
+import com.karenarias.proyectopmac.data.card.CardSyncResult
+import com.karenarias.proyectopmac.data.card.formatSoles
+import com.karenarias.proyectopmac.notifications.MetroGoNotifications
 import com.karenarias.proyectopmac.ui.auth.RechargeUiModel
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import java.io.IOException
-import java.util.Locale
 
-/** Tarjetas de la sesión activa. Sin datos de ejemplo ni caché compartida entre usuarios. */
-class HomeViewModel(
-    private val repository: UserCardsRepository = UserCardsRepository(),
-    private val operationScope: CoroutineScope? = null
-) : ViewModel() {
-    private val workScope: CoroutineScope get() = operationScope ?: viewModelScope
-    private var session: UserSession? = null
-    private var generation = 0
-    private var refreshVersion = 0
-    private var refreshJob: Job? = null
-    private var mutationJob: Job? = null
-    var sessionUserId by mutableStateOf<String?>(null)
+/**
+ * ViewModel que administra el estado y los datos de la pantalla principal (HomeScreen)
+ * para MetroGo (saldo, información de tarjeta y listado de recargas).
+ * HU-004: el saldo y la tarjeta vienen de CardRepository (AWS, con copia en el celular),
+ * los mismos datos que "Mi tarjeta".
+ */
+class HomeViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val cardRepository = CardRepository(application)
+
+    var userName by mutableStateOf("Juan")
         private set
-    var cards by mutableStateOf<List<UserCard>>(emptyList())
+
+    var cardNumber by mutableStateOf("")
         private set
-    var selectedNumber by mutableStateOf<String?>(null)
+
+    var cardType by mutableStateOf("")
         private set
-    var isLoading by mutableStateOf(false)
+
+    var cardBalance by mutableStateOf("")
         private set
-    var isSaving by mutableStateOf(false)
+
+    var isLowBalance by mutableStateOf(false)
         private set
-    var errorMessage by mutableStateOf<String?>(null)
-        private set
-    var requiresLogin by mutableStateOf(false)
-        private set
+
     var selectedTab by mutableStateOf(0)
         private set
-    val recharges: List<RechargeUiModel> = emptyList()
-    val selectedCard: UserCard? get() = cards.firstOrNull { it.numeroTarjeta == selectedNumber && it.isActive }
-        ?: cards.firstOrNull { it.isActive }
-    val cardNumber: String get() = selectedCard?.numeroTarjeta.orEmpty()
-    val cardType: String get() = selectedCard?.tipo.orEmpty()
-    val cardBalance: String get() = selectedCard?.saldoCentimos?.let { String.format(Locale.US, "S/. %.2f", it / 100.0) } ?: "Sin consultar"
-    val isLowBalance: Boolean get() = selectedCard?.let {
-        it.saldoCentimos != null && it.saldoCentimos < it.umbralSaldoBajoCentimos &&
-            it.alertasActivas && it.estadoTarjeta == "ACTIVA"
-    } ?: false
 
-    fun bindSession(value: UserSession?) {
-        if (session?.accessToken == value?.accessToken && session?.user?.id == value?.user?.id) return
-        generation++
-        refreshVersion++
-        refreshJob?.cancel()
-        mutationJob?.cancel()
-        session = value
-        sessionUserId = value?.user?.id
-        cards = emptyList()
-        selectedNumber = null
-        selectedTab = 0
-        isLoading = false
-        isSaving = false
-        requiresLogin = false
-        errorMessage = null
-        if (value != null) refreshData()
+    var recharges by mutableStateOf(
+        listOf(
+            RechargeUiModel("1", "+ S/. 20.00", "Hoy, 14:30", "Recarga exitosa", true),
+            RechargeUiModel("2", "+ S/. 10.00", "Ayer, 09:15", "Recarga exitosa", true),
+            RechargeUiModel("3", "+ S/. 15.00", "12 Oct, 18:45", "Error en recarga", false)
+        )
+    )
+        private set
+
+    init {
+        refreshData()
     }
 
-    fun onTabSelected(index: Int) { selectedTab = index }
-    fun selectCard(number: String) {
-        if (cards.any { it.numeroTarjeta == number && it.isActive }) selectedNumber = number
+    fun onTabSelected(tabIndex: Int) {
+        selectedTab = tabIndex
     }
 
-    private fun handleError(error: Exception) {
-        errorMessage = when (error) {
-            is CardsException -> error.message
-            is IOException -> "No pudimos confirmar la operación. Revisa tu conexión y actualiza tus tarjetas antes de reintentar."
-            else -> "No se pudo interpretar la respuesta del servicio de tarjetas."
-        }
-        if (error is CardsException && error.status == 401) {
-            cards = emptyList()
-            selectedNumber = null
-            requiresLogin = true
-        }
+    /**
+     * HU-003: muestra en el inicio la tarjeta digitalizada con la cámara.
+     * HU-004: también se guarda en CardRepository (y en AWS) para que "Mi tarjeta" muestre la misma tarjeta.
+     */
+    fun updateCard(number: String, type: String) {
+        cardNumber = number
+        cardType = type
+        sync { cardRepository.updateCard(number, type) }
     }
 
+    /**
+     * HU-005: registra la recarga en la lista de Inicio.
+     * HU-004: suma el monto al saldo en AWS, así Home y "Mi tarjeta" muestran el saldo nuevo
+     * y desaparece el aviso de saldo bajo si corresponde.
+     */
+    fun recordRecharge(amount: String, method: String) {
+        val value = amount.toBigDecimalOrNull() ?: return
+        val cents = value.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).toLong()
+        recharges = listOf(RechargeUiModel(
+            "SIM-" + java.util.UUID.randomUUID(), "+ S/. " + value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString(),
+            "Hoy · $method", "Recarga simulada", true
+        )) + recharges
+        sync { cardRepository.applyRecharge(cents) }
+    }
+
+    /** Vuelve a consultar el saldo (se llama cada vez que Inicio aparece en pantalla). */
     fun refreshData() {
-        val current = session ?: return
-        if (isSaving) return
-        val version = generation
-        val request = ++refreshVersion
-        refreshJob?.cancel()
-        isLoading = true
-        errorMessage = null
-        refreshJob = workScope.launch {
-            try {
-                val result = repository.list(current)
-                if (version == generation && request == refreshVersion) {
-                    cards = result
-                    selectedNumber = selectedCard?.numeroTarjeta
-                }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                if (version == generation && request == refreshVersion) handleError(error)
-            } finally {
-                if (version == generation && request == refreshVersion) isLoading = false
-            }
-        }
+        sync { cardRepository.refresh() }
     }
 
-    private fun mutate(operation: suspend (UserSession) -> UserCard, onSuccess: (UserCard) -> Unit) {
-        val current = session ?: return
-        if (isSaving) return
-        val version = generation
-        refreshVersion++
-        refreshJob?.cancel()
-        isLoading = false
-        isSaving = true
-        errorMessage = null
-        mutationJob = workScope.launch {
-            try {
-                val result = operation(current)
-                if (version == generation) {
-                    cards = (cards.filterNot { it.numeroTarjeta == result.numeroTarjeta } + result)
-                    if (result.isActive) selectedNumber = result.numeroTarjeta
-                    onSuccess(result)
-                }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                if (version == generation) handleError(error)
-            } finally {
-                if (version == generation) isSaving = false
-            }
+    /** Muestra de inmediato los datos guardados y luego los actualiza con la respuesta de AWS. */
+    private fun sync(operation: suspend () -> CardSyncResult) {
+        viewModelScope.launch {
+            val result = operation()
+            show(result.status)
         }
+        show(cardRepository.getStatus())
     }
 
-    fun addCard(number: String, alias: String, type: String, onSuccess: () -> Unit) =
-        mutate({ repository.add(it, number, alias, type) }, { onSuccess() })
+    private fun show(status: CardStatus) {
+        cardNumber = status.number
+        cardType = status.type
+        cardBalance = formatSoles(status.balanceCents)
+        isLowBalance = status.isLowBalance
 
-    fun changeCardState(number: String, active: Boolean, onSuccess: (UserCard) -> Unit) =
-        mutate({ repository.changeState(it, number, active) }, onSuccess)
+        val context = getApplication<Application>()
+        if (MetroGoNotifications.canPostNotifications(context) &&
+            cardRepository.consumeLowBalanceAlert(status)
+        ) {
+            MetroGoNotifications.showLowBalance(context, status)
+        }
+    }
 }
