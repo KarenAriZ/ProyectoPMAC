@@ -1,0 +1,14 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /recargas",
+  "requestContext": {
+    "http": {
+      "method": "POST"
+    }
+  },
+  "headers": {
+    "Authorization": "Bearer PEGA_AQUI_UN_ACCESS_TOKEN_RECIENTE"
+  },
+  "body": "{\"idOperacion\": \"50de5b94-f8ca-4a10-97ce-e7d549adab85\", \"numeroTarjeta\": \"8754785478\", \"montoCentimos\": 2000, \"metodoPago\": \"Yape\"}",
+  "isBase64Encoded": false
+}

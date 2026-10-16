@@ -1,0 +1,28 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["dynamodb:GetItem"],
+      "Resource": [
+        "arn:aws:dynamodb:us-east-1:TU_ID_DE_CUENTA:table/sesiones_metrogo",
+        "arn:aws:dynamodb:us-east-1:TU_ID_DE_CUENTA:table/usuario_metrogo"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["dynamodb:GetItem", "dynamodb:ConditionCheckItem"],
+      "Resource": "arn:aws:dynamodb:us-east-1:TU_ID_DE_CUENTA:table/usuario_tarjeta"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+      "Resource": "arn:aws:dynamodb:us-east-1:TU_ID_DE_CUENTA:table/tarjetas_metrogo"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"],
+      "Resource": "arn:aws:dynamodb:us-east-1:TU_ID_DE_CUENTA:table/recargas_metrogo"
+    }
+  ]
+}

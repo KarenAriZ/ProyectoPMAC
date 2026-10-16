@@ -1,0 +1,15 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /recargas/{id}",
+  "requestContext": {
+    "http": {
+      "method": "GET"
+    }
+  },
+  "headers": {
+    "Authorization": "Bearer PEGA_AQUI_UN_ACCESS_TOKEN_RECIENTE"
+  },
+  "pathParameters": {
+    "id": "50de5b94-f8ca-4a10-97ce-e7d549adab85"
+  }
+}
