@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,34 +21,51 @@ import androidx.compose.ui.unit.sp
 import com.karenarias.proyectopmac.ui.theme.*
 import com.karenarias.proyectopmac.ui.components.MetroGoBottomBar
 import com.karenarias.proyectopmac.ui.components.MetroGoTopBar
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
-import com.karenarias.proyectopmac.data.remote.RecargaRepository
-import com.karenarias.proyectopmac.data.model.RecargaDto
+import com.karenarias.proyectopmac.data.remote.UserCard
+import com.karenarias.proyectopmac.data.remote.UserRecharge
+import com.karenarias.proyectopmac.data.remote.SimulatedRechargeRequest
 
 @Composable
 fun RechargeScreen(
     modifier: Modifier = Modifier,
     cardNumber: String = "",
-    onRechargeConfirmed: (String, String) -> Unit = { _, _ -> },
     onTabSelected: (Int) -> Unit = {},
-    onRechargeRecorded: (RecargaDto) -> Unit = {},
     onCardsClick: () -> Unit = {},
-    onProfileClick: () -> Unit = {}
+    onProfileClick: () -> Unit = {},
+    allowRecharge: Boolean = true,
+    cards: List<UserCard> = emptyList(),
+    onCardSelected: (String) -> Unit = {},
+    isSavingRecharge: Boolean = false,
+    saveError: String? = null,
+    pending: SimulatedRechargeRequest? = null,
+    receipt: UserRecharge? = null,
+    onSubmit: (String, Long, String) -> Unit = { _, _, _ -> },
+    paymentCard: PaymentCardSummary? = null,
+    onAddPaymentCard: () -> Unit = {}
 ) {
-    // Datos temporales para probar la interfaz
-    var selectedAmount by remember { mutableStateOf("20") }
-    var selectedPayment by remember { mutableStateOf("Yape") }
-    var rechargeConfirmed by remember { mutableStateOf(false) }
+    // El servidor confirma el comprobante; la pantalla no inventa registros.
+    var selectedAmount by rememberSaveable { mutableStateOf("20") }
+    var selectedPayment by rememberSaveable { mutableStateOf("Yape") }
     var showPaymentDialog by remember { mutableStateOf(false) }
-    var confirmedAmount by remember { mutableStateOf("") }
-    var confirmedPayment by remember { mutableStateOf("") }
-    var confirmedDate by remember { mutableStateOf("") }
-    var operationNumber by remember { mutableStateOf("") }
-    val coroutineScope = rememberCoroutineScope()
-    val recargaRepository = remember { RecargaRepository() }
-    var isSavingRecharge by remember { mutableStateOf(false) }
-    var rechargeError by remember { mutableStateOf("") }
+    val rechargeConfirmed = receipt != null
+    val confirmedAmount = receipt?.let { "%.2f".format(java.util.Locale.US, it.montoCentimos / 100.0) }.orEmpty()
+    val confirmedPayment = receipt?.metodoPago.orEmpty()
+    val confirmedDate = receipt?.historyRecord()?.let { "${it.date} ${it.time}" }.orEmpty()
+    val operationNumber = receipt?.id.orEmpty()
+    val rechargeError = saveError.orEmpty()
+    val locked = isSavingRecharge || pending != null
+    val needsPaymentCard = selectedPayment == "Tarjeta Débito / Crédito Visa" && paymentCard == null
+    val activeCards = cards.filter { it.isActive }
+    val selectedCard = activeCards.firstOrNull { it.numeroTarjeta == cardNumber }
+    var cardMenuExpanded by remember { mutableStateOf(false) }
+    val confirmedCard = receipt?.let { "${it.aliasTarjeta} · •••• ${it.numeroTarjeta.takeLast(4)}" }.orEmpty()
+    val targetNumber = pending?.numeroTarjeta ?: cardNumber
+    val targetLabel = cards.firstOrNull { it.numeroTarjeta == targetNumber }?.let { "${it.alias} · ${it.maskedNumber}" }
+        ?: "•••• ${targetNumber.takeLast(4)}"
+    LaunchedEffect(receipt?.id) { if (receipt != null) showPaymentDialog = false }
+    LaunchedEffect(cardNumber) {
+        showPaymentDialog = false
+    }
     val amountValue = selectedAmount.toDoubleOrNull()
     val isValidAmount = amountValue != null &&
             amountValue > 0.0 &&
@@ -109,10 +127,53 @@ fun RechargeScreen(
                 )
 
                 Text(
-                    text = "Selecciona el monto a abonar en tarjeta *5610",
+                    text = "Selecciona la tarjeta y el monto de tu recarga",
                     fontSize = 13.sp,
                     color = PurplePrimary
                 )
+
+                if (!allowRecharge) Text("La recarga de tu cuenta estará disponible cuando conectemos el servicio de recargas.", color = PurplePrimary)
+                if (pending != null) {
+                    Text("Hay una recarga pendiente de confirmar para $targetLabel. Reintenta con los mismos datos para evitar duplicados.", color = PurpleDark)
+                    Text("Código: ${pending.idOperacion}", color = PurplePrimary, fontSize = 12.sp)
+                }
+                if (saveError != null) Text(saveError, color = MaterialTheme.colorScheme.error)
+
+                Box(Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { cardMenuExpanded = true },
+                        enabled = activeCards.isNotEmpty() && !locked,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Tarjeta a recargar", color = PurplePrimary, fontSize = 12.sp)
+                            Text(
+                                pending?.let { targetLabel } ?: selectedCard?.let { "${it.alias} · ${it.maskedNumber}" }
+                                    ?: "Selecciona una tarjeta",
+                                color = PurpleDark, fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Text("▾", color = PurpleDark)
+                    }
+                    DropdownMenu(expanded = cardMenuExpanded, onDismissRequest = { cardMenuExpanded = false }) {
+                        activeCards.forEach { card ->
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(card.alias, color = PurpleDark, fontWeight = FontWeight.Bold)
+                                        Text("${card.maskedNumber} · ${card.tipo}", color = PurplePrimary)
+                                    }
+                                },
+                                onClick = { onCardSelected(card.numeroTarjeta); cardMenuExpanded = false }
+                            )
+                        }
+                    }
+                }
+                if (activeCards.isEmpty()) {
+                    Text("Agrega o reactiva una tarjeta para poder recargar.", color = PurpleDark)
+                    TextButton(onClick = onCardsClick) { Text("Ir a Mis tarjetas", color = PurplePrimary) }
+                }
 
                 // Selección del monto
                 Row(
@@ -125,7 +186,7 @@ fun RechargeScreen(
                         Surface(
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable {
+                                .clickable(enabled = !locked) {
                                     selectedAmount = amount.toString()
                                 },
                             shape = RoundedCornerShape(10.dp),
@@ -151,7 +212,8 @@ fun RechargeScreen(
                 }
 
                 OutlinedTextField(
-                    value = selectedAmount,
+                    enabled = !locked,
+                    value = pending?.let { "%.2f".format(java.util.Locale.US, it.montoCentimos / 100.0) } ?: selectedAmount,
                     onValueChange = { newValue ->
                         if (
                             newValue.isEmpty() ||
@@ -172,10 +234,7 @@ fun RechargeScreen(
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
                     ),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PurplePrimary,
-                        focusedLabelColor = PurplePrimary
-                    )
+                    colors = metroGoTextFieldColors()
                 )
 
                 Text(
@@ -191,38 +250,29 @@ fun RechargeScreen(
                     "Plin",
                     "Tarjeta Débito / Crédito Visa"
                 ).forEach { method ->
-                    val isSelected = selectedPayment == method
+                    val isSelected = (pending?.metodoPago ?: selectedPayment) == method
 
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
+                    PaymentMethodOption(
+                        method = method,
+                        selected = isSelected,
+                        onClick = {
+                            if (!locked) {
                                 selectedPayment = method
-                            },
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (isSelected)
-                            MauveAccent.copy(alpha = 0.25f)
-                        else BackgroundCream,
-                        border = BorderStroke(
-                            width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected)
-                                PurplePrimary
-                            else MauveAccent.copy(alpha = 0.4f)
-                        )
-                    ) {
-                        Text(
-                            text = method,
-                            modifier = Modifier.padding(16.dp),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = PurpleDark
-                        )
+                                if (method == "Tarjeta Débito / Crédito Visa" && paymentCard == null) onAddPaymentCard()
+                            }
+                        }
+                    )
+                }
+                if ((pending?.metodoPago ?: selectedPayment) == "Tarjeta Débito / Crédito Visa") {
+                    paymentCard?.let { Text(it.label, color = PurpleDark, fontWeight = FontWeight.Bold) }
+                    if (!locked) OutlinedButton(onClick = onAddPaymentCard, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (paymentCard == null) "Añadir nueva tarjeta" else "Cambiar tarjeta bancaria", color = PurplePrimary)
                     }
                 }
-                val paymentMessage = when (selectedPayment) {
-                    "Yape" -> "Continuarás con el proceso de pago mediante Yape."
-                    "Plin" -> "Continuarás con el proceso de pago mediante Plin."
-                    else -> "Continuarás con el pago mediante tarjeta bancaria."
+                val paymentMessage = when (pending?.metodoPago ?: selectedPayment) {
+                    "Yape" -> "Simulación de recarga con Yape. No se realizará ningún cobro."
+                    "Plin" -> "Simulación de recarga con Plin. No se realizará ningún cobro."
+                    else -> "Simulación de recarga con tarjeta bancaria. No se realizará ningún cobro."
                 }
 
                 Text(
@@ -233,11 +283,11 @@ fun RechargeScreen(
 
                 Button(
                     onClick = {
-                        if (isValidAmount) {
+                        if (allowRecharge && (pending != null || (isValidAmount && selectedCard != null && !needsPaymentCard))) {
                             showPaymentDialog = true
                         }
                     },
-                    enabled = isValidAmount,
+                    enabled = allowRecharge && !isSavingRecharge && (pending != null || (isValidAmount && selectedCard != null && !needsPaymentCard)),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(54.dp),
@@ -247,7 +297,7 @@ fun RechargeScreen(
                     )
                 ) {
                     Text(
-                        text = "Confirmar Recarga S/ $formattedAmount",
+                        text = if (isSavingRecharge) "Registrando recarga…" else if (pending != null) "Reintentar registro" else "Confirmar Recarga S/ $formattedAmount",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = CardWhite
@@ -266,8 +316,9 @@ fun RechargeScreen(
                 )
 
                 if (rechargeConfirmed) {
+                    Text("Tarjeta: $confirmedCard", color = PurpleDark, fontSize = 14.sp)
                     Text(
-                        text = "✓ Recarga simulada exitosa",
+                        text = "✓ Recarga exitosa",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF2E7D32)
@@ -296,11 +347,6 @@ fun RechargeScreen(
                         color = PurpleDark
                     )
 
-                    Text(
-                        text = "Comprobante de demostración. No válido como pago real.",
-                        fontSize = 12.sp,
-                        color = PurplePrimary
-                    )
                 } else {
                     Text(
                         text = "El comprobante aparecerá aquí cuando se confirme una recarga.",
@@ -313,7 +359,7 @@ fun RechargeScreen(
     }
     }
 
-    if (showPaymentDialog) {
+    if (showPaymentDialog && (selectedCard != null || pending != null)) {
         AlertDialog(
             onDismissRequest = {
                 if (!isSavingRecharge) {
@@ -321,14 +367,17 @@ fun RechargeScreen(
                 }
             },
             title = {
-                Text("Confirmar recarga de prueba")
+                Text("Confirmar recarga")
             },
             text = {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Monto: S/ $formattedAmount")
-                    Text("Método de pago: $selectedPayment")
+                    Text("Tarjeta: $targetLabel")
+                    Text("Monto: S/ ${pending?.let { "%.2f".format(java.util.Locale.US, it.montoCentimos / 100.0) } ?: formattedAmount}")
+                    Text("Método de pago: ${pending?.metodoPago ?: selectedPayment}")
+                    if ((pending?.metodoPago ?: selectedPayment) == "Tarjeta Débito / Crédito Visa")
+                        paymentCard?.let { Text(it.label) }
                     Text(
                         "Esta es una simulación académica. " +
                                 "No se realizará ningún cobro real."
@@ -347,55 +396,8 @@ fun RechargeScreen(
                     enabled = !isSavingRecharge,
                     onClick = {
                         if (!isSavingRecharge) {
-                            isSavingRecharge = true
-                            rechargeError = ""
-
-                            val montoActual = formattedAmount
-                            val metodoActual = selectedPayment
-                            val fechaActual = java.text.SimpleDateFormat(
-                                "dd/MM/yyyy HH:mm",
-                                java.util.Locale.getDefault()
-                            ).format(java.util.Date())
-
-                            val idActual = "SIM-" + System.currentTimeMillis()
-
-                            coroutineScope.launch {
-                                try {
-                                    val recarga = RecargaDto(
-                                        id = idActual,
-                                        numeroTarjeta = cardNumber,
-                                        monto = montoActual,
-                                        metodoPago = metodoActual,
-                                        fecha = fechaActual,
-                                        estado = "SIMULADA"
-                                    )
-
-                                    val respuesta = recargaRepository.registrarRecarga(recarga)
-
-                                    if (respuesta.id == idActual) {
-                                        onRechargeRecorded(recarga)
-                                        confirmedAmount = montoActual
-                                        confirmedPayment = metodoActual
-                                        confirmedDate = fechaActual
-                                        operationNumber = idActual
-
-                                        rechargeConfirmed = true
-                                        onRechargeConfirmed(
-                                            confirmedAmount,
-                                            confirmedPayment
-                                        )
-                                        showPaymentDialog = false
-                                    } else {
-                                        rechargeError = "No se pudo confirmar el registro en AWS."
-                                    }
-
-                                } catch (e: Exception) {
-                                    rechargeError =
-                                        "No se pudo confirmar el registro. Verifica tu conexión."
-                                } finally {
-                                    isSavingRecharge = false
-                                }
-                            }
+                            val cents = pending?.montoCentimos ?: selectedAmount.toBigDecimal().movePointRight(2).longValueExact()
+                            onSubmit(targetNumber, cents, pending?.metodoPago ?: selectedPayment)
                         }
                     }
                 ) {
@@ -407,9 +409,8 @@ fun RechargeScreen(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !isSavingRecharge && cardNumber.isNotBlank(),
+                    enabled = !isSavingRecharge,
                     onClick = {
-                        rechargeError = ""
                         showPaymentDialog = false
                     }
                 ){
@@ -432,6 +433,15 @@ fun RechargeScreen(
 @Composable
 fun RechargeScreenPreview() {
     ProyectoPMACTheme {
-        RechargeScreen()
+        var selectedNumber by remember { mutableStateOf("8754785478") }
+        RechargeScreen(
+            cardNumber = selectedNumber,
+            cards = listOf(
+                UserCard("8754785478", "Mi tarjeta", "General", "ACTIVA"),
+                UserCard("1234567890", "Universidad", "Universitario", "ACTIVA")
+            ),
+            onCardSelected = { selectedNumber = it },
+            allowRecharge = false
+        )
     }
 }

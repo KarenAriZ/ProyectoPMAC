@@ -26,14 +26,12 @@ import kotlinx.coroutines.launch
 private fun RechargeFrame(
     title: String, onBack: () -> Unit, onHome: () -> Unit,
     onProfile: () -> Unit, onContact: () -> Unit, onClaims: () -> Unit, onLogout: () -> Unit,
+    onNavigate: (Int) -> Unit,
     content: @Composable (PaddingValues) -> Unit
 ) {
-    val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     Scaffold(
         containerColor = BackgroundCream,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             Column {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -56,11 +54,7 @@ private fun RechargeFrame(
                     NavigationBarItem(
                         selected = index == 2,
                         onClick = {
-                            when (index) {
-                                0 -> onHome()
-                                2 -> Unit
-                                else -> scope.launch { snackbar.showSnackbar("$label estará disponible próximamente") }
-                            }
+                            onNavigate(index)
                         },
                         icon = { Icon(icons[index], null) },
                         label = { Text(label, fontSize = 11.sp) },
@@ -81,13 +75,18 @@ fun RechargeHistoryScreen(
     records: List<RechargeRecord>, onRecharge: (String) -> Unit,
     onBack: () -> Unit, onHome: () -> Unit,
     onProfile: () -> Unit = {}, onContact: () -> Unit = {},
-    onClaims: () -> Unit = {}, onLogout: () -> Unit = {}
+    onClaims: () -> Unit = {}, onLogout: () -> Unit = {}, onNavigate: (Int) -> Unit = {},
+    isLoading: Boolean = false, errorMessage: String? = null, onRefresh: () -> Unit = {}
 ) {
     var visibleCount by rememberSaveable { mutableStateOf(8) }
-    RechargeFrame("Historial de recargas", onBack, onHome, onProfile, onContact, onClaims, onLogout) { padding ->
+    RechargeFrame("Historial de recargas", onBack, onHome, onProfile, onContact, onClaims, onLogout, onNavigate) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp)) {
             item {
-                Text("Datos de ejemplo", color = PurplePrimary, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
+                Text("Tus recargas", color = PurplePrimary, fontSize = 12.sp)
+                if (isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (errorMessage != null) Text(errorMessage, color = ErrorWine)
+                if (!isLoading && errorMessage == null && records.isEmpty())
+                    Text("Aún no tienes recargas registradas.", color = PurpleDark, modifier = Modifier.padding(vertical = 16.dp))
                 Surface(color = PurplePrimary, shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)) {
                         Text("Monto", Modifier.weight(0.85f), color = CardWhite, fontSize = 12.sp)
@@ -132,6 +131,8 @@ private fun RechargeInfo(record: RechargeRecord) {
             Text("Operación: ${record.id}", color = PurpleDark)
             Text("Fecha: ${record.date} · ${record.time}", color = PurpleDark)
             Text("Tarjeta: ${record.card.label}", color = PurpleDark)
+            record.cardAlias?.let { Text("Alias: $it", color = PurpleDark) }
+            record.paymentMethod?.let { Text("Método de pago: $it", color = PurpleDark) }
         }
     }
 }
@@ -159,7 +160,6 @@ fun RechargeDetailScreen(record: RechargeRecord?, existingClaim: String?, onBack
             RechargeInfo(record)
             Text("¿Tienes algún problema con esta recarga? Puedes registrar un reclamo para solicitar una revisión.", color = PurpleDark)
             PrimaryButton(if (existingClaim == null) "Realizar reclamo" else "Ver reclamo registrado", onClaim)
-            Text("Esta recarga es un ejemplo de demostración.", color = PurplePrimary, fontSize = 12.sp)
         }
     }
 }
@@ -207,11 +207,7 @@ fun RegisterClaimScreen(
                 supportingText = { Text("${description.length}/1000 · Mínimo 20 caracteres") },
                 modifier = Modifier.fillMaxWidth(), minLines = 4, maxLines = 8, enabled = createdId == null,
                 shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = PurpleDark, unfocusedTextColor = PurpleDark,
-                    focusedContainerColor = CardWhite, unfocusedContainerColor = CardWhite,
-                    focusedBorderColor = PurplePrimary, unfocusedBorderColor = MauveAccent
-                )
+                colors = metroGoTextFieldColors()
             )
             if (error != null) Text(error!!, color = ErrorWine)
             Text("Modo de prueba: el reclamo se guarda solo durante esta sesión y no se envía a atención al cliente.", color = PurplePrimary, fontSize = 12.sp)

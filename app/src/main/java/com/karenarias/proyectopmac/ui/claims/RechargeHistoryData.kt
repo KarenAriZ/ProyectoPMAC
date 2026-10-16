@@ -2,7 +2,8 @@ package com.karenarias.proyectopmac.ui.claims
 
 data class RechargeRecord(
     val id: String, val amount: String, val date: String, val time: String,
-    val status: String, val card: ClaimCard
+    val status: String, val card: ClaimCard,
+    val paymentMethod: String? = null, val cardAlias: String? = null
 )
 
 object RechargeHistorySamples {

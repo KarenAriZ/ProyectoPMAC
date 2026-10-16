@@ -22,9 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.karenarias.proyectopmac.ui.theme.*
 
-/**
- * Modelo de datos simple para representar una recarga en la lista de últimas recargas.
- */
+/** Datos de una recarga para la lista de últimas recargas de Inicio. */
 data class RechargeUiModel(
     val id: String,
     val amount: String,
@@ -56,7 +54,11 @@ fun HomeScreen(
     onLogoutClick: () -> Unit = {},
     isLowBalance: Boolean = false,              // HU-004
     onBalanceClick: () -> Unit = {},            // HU-004: abre "Mi tarjeta" (saldo, estado y alertas)
-    onRechargePointsClick: () -> Unit = {}      // HU-006
+    onRechargePointsClick: () -> Unit = {},
+    cardsLoading: Boolean = false,
+    cardsError: String? = null,
+    onRetryCards: () -> Unit = {},
+    onAddCard: () -> Unit = onMyCardsClick
 ) {
     var balanceVisible by remember { mutableStateOf(true) }
 
@@ -183,6 +185,29 @@ fun HomeScreen(
                 )
             }
 
+            if (cardsLoading) item {
+                LinearProgressIndicator(Modifier.fillMaxWidth(), color = PurplePrimary)
+                Text("Consultando tus tarjetas…", color = PurplePrimary)
+            }
+            cardsError?.let { message ->
+                item {
+                    Text(message, color = ErrorWine)
+                    TextButton(onClick = onRetryCards, enabled = !cardsLoading) { Text("Volver a intentar", color = PurplePrimary) }
+                }
+            }
+            if (cardNumber.isBlank() && !cardsLoading && cardsError == null) item {
+                Card(colors = CardDefaults.cardColors(containerColor = CardWhite), shape = RoundedCornerShape(20.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Icon(Icons.Default.AddCard, null, tint = PurplePrimary, modifier = Modifier.size(42.dp))
+                        Text("Agrega tu tarjeta del Metropolitano", color = PurpleDark, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                        Text("Todavía no tienes una tarjeta activa seleccionada. Agrega una para comenzar o reactiva una desde Mis tarjetas.", color = PurplePrimary)
+                        Button(onClick = onAddCard, colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary, contentColor = CardWhite)) {
+                            Text("Agregar tarjeta")
+                        }
+                    }
+                }
+            }
+            if (cardNumber.isNotBlank()) {
             // Tarjeta de saldo principal (HU-004: al tocarla se abre "Mi tarjeta")
             item {
                 Card(
@@ -273,6 +298,8 @@ fun HomeScreen(
                         )
                     }
                 }
+            }
+
             }
 
             // HU-004: aviso de saldo bajo dentro de la app
@@ -405,6 +432,9 @@ fun HomeScreen(
                 }
             }
 
+            if (recharges.isEmpty()) item {
+                Text("Aún no tienes recargas registradas.", color = PurplePrimary)
+            }
             items(recharges) { recharge ->
                 RechargeItemCard(recharge = recharge)
             }

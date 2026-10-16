@@ -48,16 +48,13 @@ private fun ClaimStatusBadge(status: ClaimStatus) {
 @Composable
 private fun ClaimsFrame(
     title: String, onBack: () -> Unit, onHome: () -> Unit, onClaims: () -> Unit,
-    modifier: Modifier = Modifier, onHistory: () -> Unit = {}, content: @Composable (PaddingValues) -> Unit
+    modifier: Modifier = Modifier, onHistory: () -> Unit = {}, onNavigate: (Int) -> Unit = {}, content: @Composable (PaddingValues) -> Unit
 ) {
-    val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     Scaffold(
         modifier = modifier,
         // MainActivity already applies system bar insets.
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         containerColor = BackgroundCream,
-        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
                 Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically,
@@ -79,14 +76,9 @@ private fun ClaimsFrame(
                     val labels = listOf("Inicio", "Mis tarjetas", "Historial", "Recargar")
                     val icons = listOf(Icons.Default.Home, Icons.Default.CreditCard, Icons.Default.History, Icons.Default.FlashOn)
                     labels.forEachIndexed { index, label ->
-                        NavigationBarItem(selected = index == 1,
+                        NavigationBarItem(selected = false,
                             onClick = {
-                                when (index) {
-                                    0 -> onHome()
-                                    1 -> onClaims()
-                                    2 -> onHistory()
-                                    else -> scope.launch { snackbar.showSnackbar("$label estará disponible próximamente") }
-                                }
+                                onNavigate(index)
                             },
                             icon = { Icon(icons[index], null) },
                             label = { Text(label, fontSize = 11.sp, maxLines = 1) },
@@ -106,11 +98,11 @@ fun ClaimsScreen(
     claims: List<CardClaim>, cards: List<ClaimCard>, selectedCard: String,
     selectedFilter: ClaimFilter, onCardSelected: (String) -> Unit,
     onFilterSelected: (ClaimFilter) -> Unit, onClaimClick: (String) -> Unit,
-    onBack: () -> Unit, onHome: () -> Unit, modifier: Modifier = Modifier, onHistory: () -> Unit = {}
+    onBack: () -> Unit, onHome: () -> Unit, modifier: Modifier = Modifier, onHistory: () -> Unit = {}, onNavigate: (Int) -> Unit = {}
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val visibleClaims = filterClaims(claims, selectedCard, selectedFilter)
-    ClaimsFrame("Mis reclamos", onBack, onHome, {}, modifier, onHistory) { padding ->
+    ClaimsFrame("Mis reclamos", onBack, onHome, {}, modifier, onHistory, onNavigate) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -193,9 +185,9 @@ private fun ClaimPanel(content: @Composable ColumnScope.() -> Unit) {
 @Composable
 fun ClaimDetailScreen(
     claim: CardClaim?, onBack: () -> Unit, onHome: () -> Unit, onClaims: () -> Unit,
-    modifier: Modifier = Modifier, onHistory: () -> Unit = {}
+    modifier: Modifier = Modifier, onHistory: () -> Unit = {}, onNavigate: (Int) -> Unit = {}
 ) {
-    ClaimsFrame("Detalle del reclamo", onBack, onHome, onClaims, modifier, onHistory) { padding ->
+    ClaimsFrame("Detalle del reclamo", onBack, onHome, onClaims, modifier, onHistory, onNavigate) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {

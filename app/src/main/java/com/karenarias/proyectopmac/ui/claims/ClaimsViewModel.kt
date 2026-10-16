@@ -15,10 +15,10 @@ import kotlinx.coroutines.flow.StateFlow
 class ClaimsViewModel(private val savedState: SavedStateHandle) : ViewModel() {
     val selectedCard: StateFlow<String> = savedState.getStateFlow("claimCard", "all")
     val selectedFilter: StateFlow<String> = savedState.getStateFlow("claimFilter", ClaimFilter.ALL.name)
-    val cards: List<ClaimCard> get() = (ClaimSamples.cards + rechargeRecords.map { it.card }).distinctBy { it.id }
-    var claims by mutableStateOf(ClaimSamples.claims)
+    val cards: List<ClaimCard> get() = (rechargeRecords.map { it.card } + claims.map { it.card }).distinctBy { it.id }
+    var claims by mutableStateOf<List<CardClaim>>(emptyList())
         private set
-    var rechargeRecords by mutableStateOf(RechargeHistorySamples.records)
+    var rechargeRecords by mutableStateOf<List<RechargeRecord>>(emptyList())
         private set
     private var activeUser: String? = null
 
@@ -27,13 +27,17 @@ class ClaimsViewModel(private val savedState: SavedStateHandle) : ViewModel() {
         rechargeRecords = listOf(record) + rechargeRecords
     }
 
+    fun replaceRecharges(userId: String?, records: List<RechargeRecord>) {
+        if (activeUser == userId && userId != null) rechargeRecords = records
+    }
+
     fun findRecharge(id: String?) = rechargeRecords.find { it.id == id }
 
     fun bindUser(userId: String?) {
         if (activeUser != userId) {
             activeUser = userId
-            claims = ClaimSamples.claims
-            rechargeRecords = RechargeHistorySamples.records
+            claims = emptyList()
+            rechargeRecords = emptyList()
             selectCard("all")
             selectFilter(ClaimFilter.ALL)
         }

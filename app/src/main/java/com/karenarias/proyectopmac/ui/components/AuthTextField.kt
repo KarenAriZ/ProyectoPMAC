@@ -9,7 +9,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import com.karenarias.proyectopmac.ui.theme.metroGoTextFieldColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,10 +22,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.karenarias.proyectopmac.ui.theme.CardWhite
 import com.karenarias.proyectopmac.ui.theme.MauveAccent
-import com.karenarias.proyectopmac.ui.theme.PurpleDark
-import com.karenarias.proyectopmac.ui.theme.PurplePrimary
 
 /**
  * Componente reutilizable de campo de texto para autenticación en MetroGo.
@@ -48,7 +45,7 @@ fun AuthTextField(
         enabled = enabled,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
-        placeholder = { Text(text = placeholder, color = PurpleDark.copy(alpha = 0.6f)) },
+        placeholder = { Text(text = placeholder) },
         leadingIcon = {
             Icon(
                 imageVector = icon,
@@ -77,23 +74,7 @@ fun AuthTextField(
             KeyboardOptions.Default
         },
         shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = PurpleDark,
-            unfocusedTextColor = PurpleDark,
-            disabledTextColor = PurpleDark,
-            errorTextColor = PurpleDark,
-            focusedContainerColor = CardWhite,
-            unfocusedContainerColor = CardWhite,
-            disabledContainerColor = CardWhite,
-            errorContainerColor = CardWhite,
-            focusedBorderColor = PurplePrimary,
-            unfocusedBorderColor = MauveAccent,
-            focusedLabelColor = PurplePrimary,
-            unfocusedLabelColor = MauveAccent,
-            cursorColor = PurplePrimary
-        ),
+        colors = metroGoTextFieldColors(),
         singleLine = true
     )
 }
-
-

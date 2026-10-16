@@ -37,6 +37,11 @@ class AuthViewModel : ViewModel() {
         loginErrorMessage = null
     }
 
+    fun invalidateSession() {
+        logout()
+        loginErrorMessage = "Tu sesión no es válida. Inicia sesión nuevamente."
+    }
+
     fun checkSessionExpiration() {
         if (session?.isExpired() == true) {
             logout()

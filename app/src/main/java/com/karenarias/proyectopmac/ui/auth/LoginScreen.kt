@@ -11,11 +11,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.karenarias.proyectopmac.ui.components.AuthTextField
 import com.karenarias.proyectopmac.ui.components.PrimaryButton
 import com.karenarias.proyectopmac.ui.theme.*
@@ -37,6 +40,49 @@ fun LoginScreen(
     isLoading: Boolean = false,
     errorMessage: String? = null
 ) {
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(isLoading) {
+        if (isLoading) keyboard?.hide()
+    }
+    if (isLoading) {
+        Dialog(
+            onDismissRequest = {},
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
+            )
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = CardWhite)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = PurplePrimary
+                    )
+                    Text(
+                        text = "Validando inicio de sesión…",
+                        color = PurpleDark,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        text = "Estamos verificando tus datos. Espera un momento.",
+                        color = PurpleDark,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -174,6 +220,23 @@ fun LoginScreenPreview() {
             onNavigateToForgotPassword = {},
             isLoading = false,
             errorMessage = null
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Validando inicio de sesión")
+@Composable
+private fun LoginScreenLoadingPreview() {
+    ProyectoPMACTheme {
+        LoginScreen(
+            email = "",
+            onEmailChange = {},
+            password = "",
+            onPasswordChange = {},
+            onLoginClick = {},
+            onNavigateToRegister = {},
+            onNavigateToForgotPassword = {},
+            isLoading = true
         )
     }
 }

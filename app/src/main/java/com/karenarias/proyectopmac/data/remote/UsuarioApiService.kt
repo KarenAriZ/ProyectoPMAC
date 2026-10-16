@@ -64,4 +64,6 @@ object UsuarioApiClient {
     }
     val api: UsuarioApiService by lazy { retrofit.create(UsuarioApiService::class.java) }
     val loginApi: LoginApiService by lazy { retrofit.create(LoginApiService::class.java) }
+    val cardsApi: UserCardsApiService by lazy { retrofit.create(UserCardsApiService::class.java) }
+    val rechargesApi: UserRechargesApiService by lazy { retrofit.create(UserRechargesApiService::class.java) }
 }
